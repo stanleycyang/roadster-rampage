@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { ROAD_HALF, dayness } from './config.ts'
 import { damp, lerp } from './util.ts'
 import { groundFragment, groundVertex, skyFragment, skyVertex } from './shaders.ts'
@@ -92,35 +93,6 @@ function windowTexture(seed: number): THREE.CanvasTexture {
   tex.colorSpace = THREE.SRGBColorSpace
   tex.wrapS = THREE.RepeatWrapping
   tex.wrapT = THREE.RepeatWrapping
-  tex.needsUpdate = true
-  return tex
-}
-
-function envMap(): THREE.CubeTexture {
-  const faces: HTMLCanvasElement[] = []
-  for (let i = 0; i < 6; i++) {
-    const c = document.createElement('canvas')
-    c.width = 64
-    c.height = 64
-    const g = c.getContext('2d')!
-    const grd = g.createLinearGradient(0, 0, 0, 64)
-    if (i === 2) {
-      grd.addColorStop(0, '#2a0c48')
-      grd.addColorStop(1, '#12061c')
-    } else if (i === 3) {
-      grd.addColorStop(0, '#14060c')
-      grd.addColorStop(1, '#050208')
-    } else {
-      grd.addColorStop(0, '#241038')
-      grd.addColorStop(0.45, '#ff5a3c')
-      grd.addColorStop(1, '#1a0818')
-    }
-    g.fillStyle = grd
-    g.fillRect(0, 0, 64, 64)
-    faces.push(c)
-  }
-  const tex = new THREE.CubeTexture(faces)
-  tex.colorSpace = THREE.SRGBColorSpace
   tex.needsUpdate = true
   return tex
 }
@@ -237,6 +209,11 @@ export class World {
   private readonly moon: THREE.Sprite
   private readonly hemi: THREE.HemisphereLight
   private readonly dir: THREE.DirectionalLight
+  private readonly catcher: THREE.Mesh
+  private readonly shaft: THREE.Mesh
+  private readonly sunDir = new THREE.Vector3()
+  private readonly up = new THREE.Vector3(0, 1, 0)
+  private high = true
   private readonly buildings: Building[] = []
   private readonly lamps: THREE.Group[] = []
   private readonly horizon = new THREE.Color()
@@ -254,17 +231,58 @@ export class World {
     })
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.05
-    this.renderer.setClearColor(0x05020a, 1)
+    this.renderer.toneMappingExposure = 0.95
+    this.renderer.shadowMap.enabled = true
+    this.renderer.shadowMap.type = THREE.PCFShadowMap
+    this.renderer.setClearColor(0x12060e, 1)
     this.camera = new THREE.PerspectiveCamera(68, 1, 0.1, 700)
-    this.fog = new THREE.Fog(0x1a0a14, 80, 250)
+    this.fog = new THREE.Fog(0x2a1020, 70, 220)
     this.scene.fog = this.fog
-    this.scene.environment = envMap()
 
-    this.hemi = new THREE.HemisphereLight(0x8aa0ff, 0x1a0610, 0.55)
-    this.dir = new THREE.DirectionalLight(0xffc2a0, 1)
-    this.dir.position.set(-30, 40, -20)
-    this.scene.add(this.hemi, this.dir)
+    const pmrem = new THREE.PMREMGenerator(this.renderer)
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    this.scene.environmentIntensity = 0.42
+    pmrem.dispose()
+
+    this.hemi = new THREE.HemisphereLight(0xffc2a8, 0x1a1020, 0.55)
+    this.dir = new THREE.DirectionalLight(0xffc8a4, 1.35)
+    this.dir.position.set(-12, 18, 16)
+    this.dir.castShadow = true
+    this.dir.shadow.mapSize.set(2048, 2048)
+    this.dir.shadow.camera.near = 2
+    this.dir.shadow.camera.far = 70
+    this.dir.shadow.camera.left = -16
+    this.dir.shadow.camera.right = 16
+    this.dir.shadow.camera.top = 22
+    this.dir.shadow.camera.bottom = -14
+    this.dir.shadow.bias = -0.0006
+    this.dir.shadow.normalBias = 0.035
+    this.dir.shadow.radius = 2
+    this.scene.add(this.hemi, this.dir, this.dir.target)
+
+    this.catcher = new THREE.Mesh(
+      new THREE.PlaneGeometry(64, 80),
+      new THREE.ShadowMaterial({ opacity: 0.42 }),
+    )
+    this.catcher.rotation.x = -Math.PI / 2
+    this.catcher.position.y = 0.03
+    this.catcher.receiveShadow = true
+    this.scene.add(this.catcher)
+
+    this.shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.5, 14, 70, 16, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color().setRGB(1.15, 0.48, 0.22),
+        transparent: true,
+        opacity: 0.05,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        fog: false,
+      }),
+    )
+    this.shaft.frustumCulled = false
+    this.anchor.add(this.shaft)
 
     this.groundUniforms = THREE.UniformsUtils.merge([
       THREE.UniformsLib.fog,
@@ -393,6 +411,16 @@ export class World {
     this.scene.add(this.rocket.group)
   }
 
+  setQuality(high: boolean): void {
+    this.high = high
+    const size = high ? 2048 : 1024
+    this.dir.shadow.mapSize.set(size, size)
+    this.dir.shadow.map?.dispose()
+    this.dir.shadow.map = null
+    const mat = this.shaft.material as THREE.MeshBasicMaterial
+    mat.opacity = high ? 0.055 : 0.028
+  }
+
   resize(pr: number): void {
     const w = window.innerWidth
     const h = window.innerHeight
@@ -410,8 +438,8 @@ export class World {
     const night = 1 - day
     this.horizon.setRGB(lerp(0.05, 0.5, day), lerp(0.015, 0.14, day), lerp(0.07, 0.09, day))
     this.fog.color.copy(this.horizon)
-    this.fog.near = lerp(78, 26, Math.max(this.tunnelMix, this.rainMix * 0.65))
-    this.fog.far = lerp(255, 145, Math.max(this.tunnelMix * 0.75, this.rainMix * 0.5))
+    this.fog.near = lerp(62, 22, Math.max(this.tunnelMix, this.rainMix * 0.65))
+    this.fog.far = lerp(210, 120, Math.max(this.tunnelMix * 0.75, this.rainMix * 0.5))
 
     this.ground.position.set(0, 0, player.z + 30)
     this.groundUniforms.uOrigin.value = Math.floor(player.z / 500) * 500
@@ -426,7 +454,8 @@ export class World {
     this.skyUniforms.uDay.value = day
     this.skyUniforms.uTime.value = this.time
     this.skyUniforms.uLightning.value = lightning
-    const sunDir = new THREE.Vector3(-0.42, -0.05 + day * 0.66, 0.72).normalize()
+    this.sunDir.set(-0.42, -0.05 + day * 0.66, 0.72).normalize()
+    const sunDir = this.sunDir
     this.sun.position.copy(sunDir).multiplyScalar(250)
     const sunMat = this.sun.material as THREE.SpriteMaterial
     sunMat.opacity = Math.min(1, day * 1.35)
@@ -436,10 +465,19 @@ export class World {
     const moonMat = this.moon.material as THREE.SpriteMaterial
     moonMat.opacity = Math.max(0, night * 1.1 - 0.05)
 
-    this.hemi.intensity = (0.32 + day * 0.28) * (1 - this.tunnelMix * 0.45)
-    this.dir.intensity = (0.22 + day * 1.05) * (1 - this.tunnelMix * 0.72) + lightning * 1.4
-    this.dir.color.setRGB(1, lerp(0.5, 0.72, day), lerp(0.4, 0.55, day))
-    this.renderer.toneMappingExposure = 1.02 + night * 0.08 + lightning * 0.25
+    this.hemi.intensity = (0.42 + day * 0.38) * (1 - this.tunnelMix * 0.55)
+    this.hemi.color.setRGB(lerp(0.45, 1, day), lerp(0.35, 0.62, day), lerp(0.55, 0.48, day))
+    this.dir.intensity = (0.45 + day * 1.25) * (1 - this.tunnelMix * 0.78) + lightning * 1.2
+    this.dir.color.setRGB(1, lerp(0.55, 0.78, day), lerp(0.42, 0.58, day))
+    this.dir.position.set(player.x, 0, player.z + 6).addScaledVector(sunDir, 28)
+    this.dir.target.position.set(player.x, 0.4, player.z + 2)
+    this.dir.target.updateMatrixWorld()
+    this.catcher.position.set(player.x, 0.03, player.z + 4)
+    this.shaft.position.copy(sunDir).multiplyScalar(190)
+    this.shaft.quaternion.setFromUnitVectors(this.up, sunDir)
+    const shaftMat = this.shaft.material as THREE.MeshBasicMaterial
+    shaftMat.opacity = (this.high ? 0.055 : 0.028) * (0.35 + day * 0.75) * (1 - this.tunnelMix)
+    this.renderer.toneMappingExposure = 0.92 + night * 0.1 + lightning * 0.22
 
     for (const b of this.buildings) {
       if (b.mesh.position.z < player.z - 40) b.mesh.position.z += 462

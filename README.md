@@ -31,6 +31,7 @@ npm run preview
 | Barrel roll in the air | Q E, or tap steer | Tap steer |
 | Pause | P or Esc | Pause |
 | Mute | M | Sound |
+| Quality | High / Medium button | same |
 
 The car cruises on its own. Throttle pushes toward top speed. Brake drops you back so you can line up a vault. In the air, steering still moves you, and a tap rolls the car for style points.
 
@@ -41,3 +42,9 @@ Five lanes of cars, trucks, and buses. A near miss or a clean jump over traffic 
 A crash ends the run with a slow-motion replay, then a score screen. Best score, distance, and combo are saved in this browser.
 
 The sky shifts from sunset toward night as distance climbs, then comes back around.
+
+## Picture
+
+The car is an original model: a low, wide, long-nose coupe with a teardrop roof, glass targa panel, full-width lamp bars, and multi-spoke wheels. There are no manufacturer logos. Paint is a deep metallic red clearcoat under a studio environment light (three.js `RoomEnvironment`), with a soft shadowed sun, wet puddles in the asphalt, filmic tone mapping, and a little depth of field on High.
+
+**High** turns on ambient occlusion, depth of field, and a sharper shadow. **Medium** keeps the lighting and bloom and is the one to use when a laptop needs 60fps. The button sits next to Sound. A slow machine drops to Medium on its own.

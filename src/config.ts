@@ -15,6 +15,7 @@ export const COMBO_MAX = 12
 
 export const SAVE_KEY = 'roadster-rampage-best'
 export const MUTE_KEY = 'roadster-rampage-muted'
+export const QUALITY_KEY = 'roadster-rampage-quality'
 
 export function laneX(index: number): number {
   return (index - (LANE_COUNT - 1) / 2) * LANE_W

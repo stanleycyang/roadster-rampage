@@ -66,15 +66,23 @@ void main() {
     asphalt += vec3(0.9, 0.95, 1.0) * edge * (0.35 + night * 0.4);
     asphalt += neonCol * neon * (0.45 + night * 1.1);
 
-    float ripple = sin(x * 1.7 + uTime * 2.4) * sin(z * 1.3 - uTime * 1.8) * uRain;
-    vec3 N = normalize(vec3(ripple * 0.18, 1.0, ripple * 0.18));
+    float nA = hash(floor(vec2(x * 0.31 + 2.0, z * 0.27)));
+    float nB = hash(floor(vec2(x * 0.11, z * 0.13 + 9.0)));
+    float puddle = smoothstep(0.62, 0.84, nA) * smoothstep(0.35, 0.72, nB);
+    float wet = clamp(puddle * 0.85 + uRain * 0.9, 0.0, 1.0);
+    asphalt = mix(asphalt, asphalt * vec3(0.35, 0.38, 0.42), wet);
+
+    float ripple = sin(x * 1.7 + uTime * 2.4) * sin(z * 1.3 - uTime * 1.8);
+    ripple = mix(ripple * 0.15, ripple, max(uRain, wet));
+    vec3 N = normalize(vec3(ripple * 0.22, 1.0, ripple * 0.22));
     vec3 V = normalize(vView);
     vec3 L = normalize(uSunDir);
     vec3 H = normalize(L + V);
-    float spec = pow(max(dot(N, H), 0.0), mix(28.0, 70.0, uRain));
-    float fres = pow(1.0 - max(dot(N, V), 0.0), 4.0);
-    asphalt += uHorizon * spec * (0.18 + uRain * 0.7);
-    asphalt = mix(asphalt, uHorizon, fres * (0.06 + uRain * 0.28));
+    float spec = pow(max(dot(N, H), 0.0), mix(22.0, 160.0, wet));
+    float fres = pow(1.0 - max(dot(N, V), 0.0), mix(4.0, 2.4, wet));
+    vec3 skyRef = mix(uHorizon, vec3(0.55, 0.22, 0.16), 0.35 + uDay * 0.4);
+    asphalt += skyRef * spec * (0.12 + wet * 1.15 + uRain * 0.35);
+    asphalt = mix(asphalt, skyRef, fres * (0.04 + wet * 0.42));
 
     float ahead = vCarRel.y - 5.0;
     float head = exp(-pow(vCarRel.x / 2.7, 2.0) - pow(ahead / 16.0, 2.0));
@@ -181,16 +189,17 @@ export const SpeedShader = {
     void main() {
       vec2 center = vec2(0.5, 0.45);
       float speed = clamp(uSpeed, 0.0, 1.0);
-      float blur = smoothstep(0.18, 1.0, speed) * 0.02 * (1.0 - uLudi * 0.7);
+      float blur = smoothstep(0.22, 1.0, speed) * 0.012 * (1.0 - uLudi * 0.65);
       vec2 dir = vUv - center;
+      vec2 streak = vec2(0.0, blur * 1.6);
       vec3 col = vec3(0.0);
-      const int N = 5;
+      const int N = 7;
       for (int i = 0; i < N; i++) {
-        float f = float(i) / 4.0;
-        vec2 o = dir * blur * f;
-        col.r += texture2D(tDiffuse, vUv - o * (1.0 + blur * 8.0)).r;
+        float f = float(i) / 6.0;
+        vec2 o = dir * blur * f + streak * (f - 0.5);
+        col.r += texture2D(tDiffuse, vUv - o * (1.0 + blur * 6.0)).r;
         col.g += texture2D(tDiffuse, vUv - o).g;
-        col.b += texture2D(tDiffuse, vUv - o * (1.0 - blur * 6.0)).b;
+        col.b += texture2D(tDiffuse, vUv - o * (1.0 - blur * 5.0)).b;
       }
       col /= float(N);
 

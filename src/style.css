@@ -240,6 +240,8 @@ body.ludicrous #speedVal, #hud.ludicrous #speedVal {
 @keyframes pulse { 50% { opacity: 0.65; } }
 
 #pauseBtn { position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 118px; pointer-events: auto; }
+#qualityBtn { position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 210px; pointer-events: auto; z-index: 6; }
+#qualityBtn.is-medium { color: var(--amber); border-color: var(--amber); }
 .mute {
   top: calc(14px + env(safe-area-inset-top));
   right: 16px;
@@ -303,6 +305,12 @@ body.mode-replay #replayTag { display: block; }
 body.mode-title #title,
 body.mode-paused #pause,
 body.mode-score #score { display: flex; }
+body.beauty #hud,
+body.beauty #title,
+body.beauty #toasts,
+body.beauty .mute,
+body.beauty #qualityBtn,
+body.beauty #pauseBtn { display: none !important; }
 
 #title { align-items: center; padding: 6vh 6vw; }
 .title-card, .panel {
@@ -441,5 +449,6 @@ body.touch #hint { bottom: calc(214px + env(safe-area-inset-bottom)); }
   .title-card { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; }
   .hud-top { padding-left: 12px; padding-right: 12px; }
   #pauseBtn { right: 96px; }
+  #qualityBtn { right: 168px; padding: 8px 8px; }
   #hint { font-size: 11px; letter-spacing: 0.08em; }
 }

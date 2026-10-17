@@ -1,12 +1,14 @@
 import * as THREE from 'three'
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { AudioEngine } from './audio.ts'
 import { Roadster } from './car.ts'
-import { COMBO_MAX, COMBO_TIME, MUTE_KEY, SAVE_KEY } from './config.ts'
+import { COMBO_MAX, COMBO_TIME, MUTE_KEY, QUALITY_KEY, SAVE_KEY } from './config.ts'
 import { Effects } from './fx.ts'
 import { Input } from './input.ts'
 import { SpeedShader } from './shaders.ts'
@@ -39,6 +41,8 @@ export class Game {
   private readonly ui: UI
   private readonly composer: EffectComposer
   private readonly bloom: UnrealBloomPass
+  private readonly ssao: SSAOPass
+  private readonly bokeh: BokehPass
   private readonly speedPass: ShaderPass
   private readonly camPos = new THREE.Vector3()
   private readonly look = new THREE.Vector3()
@@ -68,6 +72,7 @@ export class Game {
   private snapCam = true
   private suppress = 0
   private pixelCap = 1.25
+  private high = true
   private qualityChecked = false
   private warmup = 0
   private fpsAccum = 0
@@ -75,6 +80,7 @@ export class Game {
   private lastCoinSfx = 0
   private readonly debug: boolean
   private readonly autostart: boolean
+  private readonly beauty: boolean
   private readonly frame = (now: number) => {
     const dt = Math.min(0.05, (now - this.last) / 1000)
     this.last = now
@@ -103,28 +109,43 @@ export class Game {
       menu: () => this.backToTitle(),
       mute: () => this.toggleMute(),
       pause: () => this.togglePause(),
+      quality: () => this.toggleQuality(),
     })
     this.ui.setMuted(this.audio.muted)
     this.ui.setBest(this.best)
 
+    const w = window.innerWidth
+    const h = window.innerHeight
     const renderPass = new RenderPass(this.world.scene, this.world.camera)
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.58, 0.45, 0.82)
+    this.ssao = new SSAOPass(this.world.scene, this.world.camera, w, h, 16)
+    this.ssao.kernelRadius = 0.45
+    this.ssao.minDistance = 0.0008
+    this.ssao.maxDistance = 0.012
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.42, 0.4, 0.78)
+    this.bokeh = new BokehPass(this.world.scene, this.world.camera, { focus: 8, aperture: 0.00018, maxblur: 0.006 })
     this.speedPass = new ShaderPass(SpeedShader)
     this.composer = new EffectComposer(this.world.renderer)
     this.composer.addPass(renderPass)
+    this.composer.addPass(this.ssao)
     this.composer.addPass(this.bloom)
+    this.composer.addPass(this.bokeh)
     this.composer.addPass(this.speedPass)
     this.composer.addPass(new OutputPass())
 
     const params = new URLSearchParams(location.search)
     this.debug = params.has('debug')
     this.autostart = params.has('autostart')
+    this.beauty = params.has('beauty')
+    if (this.beauty) document.body.classList.add('beauty')
     window.addEventListener('resize', this.onResize)
     window.addEventListener('pointerdown', () => this.audio.unlock())
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && this.mode === 'playing') this.togglePause()
     })
     if (this.debug) window.addEventListener('keydown', this.onDebug)
+    const stored = loadQuality()
+    const coarse = window.matchMedia('(pointer: coarse)').matches
+    this.applyQuality(stored ?? (coarse ? 'medium' : 'high'), false)
     this.onResize()
     this.backToTitle()
   }
@@ -180,6 +201,15 @@ export class Game {
       }
       const showHint = !this.didJump && this.player.z > 12 && this.player.z < 250
       this.ui.setHint(showHint ? (document.body.classList.contains('touch') ? 'HOLD JUMP TO FIRE COLD-GAS THRUSTERS' : 'HOLD SPACE — COLD-GAS THRUSTERS') : '')
+    }
+    if (this.beauty) {
+      this.player.x = 0
+      this.player.z = 4
+      this.player.vx = 0
+      this.player.vy = 0
+      this.player.speed = 0
+      this.player.y = 0
+      this.player.onGround = true
     }
     this.lastZ = this.player.z
     this.placeCar(dt)
@@ -549,6 +579,15 @@ export class Game {
   private updateCamera(dt: number): void {
     if (this.mode === 'replay') return
     const p = this.player
+    if (this.beauty) {
+      const cam = this.world.camera
+      cam.up.set(0, 1, 0)
+      cam.position.set(p.x + 4.5, 1.22, p.z - 2.4)
+      cam.lookAt(p.x + 0.05, 0.5, p.z + 0.25)
+      cam.fov = 30
+      cam.updateProjectionMatrix()
+      return
+    }
     const speedN = clamp((p.speed - 28) / 70, 0, 1)
     const title = this.mode === 'title'
     const back = title ? 11.2 : 7.5 - speedN * 0.7
@@ -585,9 +624,10 @@ export class Game {
     const speedN = clamp((this.player.speed - 24) / 75, 0, 1)
     const night = 1 - clamp((Math.cos(((this.player.z % 11000) / 11000) * Math.PI * 2) * 0.5 + 0.5), 0, 1)
     const ludi = this.player.ludicrous > 0 ? 1 : 0
-    this.bloom.strength = 0.42 + night * 0.16 + speedN * 0.08 + ludi * 0.22 + (this.sim.inTunnel ? 0.14 : 0)
-    this.bloom.threshold = ludi ? 0.58 : 0.74
-    this.bloom.radius = 0.42 + ludi * 0.08
+    this.bokeh.enabled = this.high && !this.beauty
+    this.bloom.strength = 0.1 + night * 0.04 + ludi * 0.16 + (this.sim.inTunnel ? 0.04 : 0)
+    this.bloom.threshold = ludi ? 1.1 : 2.6
+    this.bloom.radius = 0.35 + ludi * 0.08
     const u = this.speedPass.uniforms
     const set = (name: string, value: number) => {
       const slot = u[name]
@@ -597,6 +637,11 @@ export class Game {
     set('uTime', this.time)
     set('uLudi', ludi)
     set('uFlash', Math.max(this.flash, this.lightning * 0.55))
+    const focus = this.world.camera.position.distanceTo(this.beauty ? this.car.root.position : this.look)
+    const bu = this.bokeh.uniforms as Record<string, { value: number }>
+    bu['focus']!.value = Math.max(1.2, focus)
+    bu['aperture']!.value = this.high ? (this.beauty ? 0.00035 : 0.00016) : 0
+    bu['maxblur']!.value = this.beauty ? 0.012 : 0.005
   }
 
   private paintHud(): void {
@@ -632,12 +677,33 @@ export class Game {
     this.fpsFrames++
     if (this.fpsAccum < 1.6) return
     const fps = this.fpsFrames / this.fpsAccum
-    if (fps < 52 && this.pixelCap > 1) {
+    if (fps < 50 && this.high) {
+      this.applyQuality('medium', true)
+      this.ui.toast('MEDIUM QUALITY', 'warn')
+    } else if (fps < 52 && this.pixelCap > 1) {
       this.pixelCap = 1
       this.onResize()
     }
     this.qualityChecked = true
     console.info(`Roadster Rampage ${fps.toFixed(0)} fps`)
+  }
+
+  private toggleQuality(): void {
+    this.applyQuality(this.high ? 'medium' : 'high', true)
+  }
+
+  private applyQuality(level: 'high' | 'medium', persist: boolean): void {
+    this.high = level === 'high'
+    this.pixelCap = this.high ? 1.25 : 1
+    this.ssao.enabled = this.high
+    this.bokeh.enabled = this.high
+    this.world.setQuality(this.high)
+    this.car.setHeadlightShadows(this.high)
+    this.ui.setQuality(this.high)
+    if (persist) {
+      try { localStorage.setItem(QUALITY_KEY, level) } catch { /* ignore */ }
+    }
+    this.onResize()
   }
 
   private readonly onResize = (): void => {
@@ -695,4 +761,12 @@ function saveSave(data: SaveData): void {
 
 function loadMute(): boolean {
   try { return localStorage.getItem(MUTE_KEY) === '1' } catch { return false }
+}
+
+function loadQuality(): 'high' | 'medium' | null {
+  try {
+    const value = localStorage.getItem(QUALITY_KEY)
+    if (value === 'high' || value === 'medium') return value
+  } catch { /* ignore */ }
+  return null
 }

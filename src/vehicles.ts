@@ -14,32 +14,43 @@ export interface VehModel {
   kind: VehKind
 }
 
-const tireGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.22, 12)
-tireGeo.rotateZ(Math.PI / 2)
-const tireMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.9, metalness: 0.05 })
-const glassMat = new THREE.MeshStandardMaterial({
-  color: 0x0c1a22,
-  roughness: 0.08,
-  metalness: 0.7,
+const tireGeo = new THREE.TorusGeometry(0.28, 0.055, 8, 16)
+tireGeo.rotateY(Math.PI / 2)
+const rimGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.12, 16)
+rimGeo.rotateZ(Math.PI / 2)
+const tireMat = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.78, metalness: 0.08 })
+const rimMat = new THREE.MeshStandardMaterial({ color: 0xc5ccd6, roughness: 0.22, metalness: 0.92 })
+const glassMat = new THREE.MeshPhysicalMaterial({
+  color: new THREE.Color().setStyle('#1a3038'),
+  roughness: 0.06,
+  metalness: 0.15,
+  clearcoat: 1,
+  clearcoatRoughness: 0.05,
   transparent: true,
-  opacity: 0.78,
-  envMapIntensity: 1,
+  opacity: 0.72,
+  envMapIntensity: 1.6,
 })
-const windowMat = new THREE.MeshBasicMaterial({
-  color: new THREE.Color().setRGB(0.25, 0.85, 1.15),
+const windowMat = new THREE.MeshPhysicalMaterial({
+  color: new THREE.Color().setStyle('#163038'),
+  roughness: 0.08,
+  metalness: 0.2,
+  transparent: true,
+  opacity: 0.55,
+  envMapIntensity: 1.2,
+})
+const headMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  emissive: new THREE.Color().setRGB(2.2, 2.0, 1.5),
+  emissiveIntensity: 1,
   toneMapped: false,
-  fog: false,
 })
-const headMat = new THREE.MeshBasicMaterial({
-  color: new THREE.Color().setRGB(2.4, 2.1, 1.5),
+const amberMat = new THREE.MeshStandardMaterial({
+  color: 0xffb04a,
+  emissive: new THREE.Color().setRGB(1.6, 0.7, 0.1),
+  emissiveIntensity: 0.8,
   toneMapped: false,
-  fog: false,
 })
-const amberMat = new THREE.MeshBasicMaterial({
-  color: new THREE.Color().setRGB(2.4, 1.1, 0.15),
-  toneMapped: false,
-  fog: false,
-})
+const chromeMat = new THREE.MeshStandardMaterial({ color: 0xd5dbe3, metalness: 1, roughness: 0.16 })
 
 function tailMaterial(): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({
@@ -50,17 +61,25 @@ function tailMaterial(): THREE.MeshBasicMaterial {
 }
 
 function bodyMaterial(color: number): THREE.MeshStandardMaterial {
-  const mat = new THREE.MeshStandardMaterial({
+  return new THREE.MeshPhysicalMaterial({
     color,
-    metalness: 0.62,
-    roughness: 0.38,
-    envMapIntensity: 0.55,
+    metalness: 0.78,
+    roughness: 0.28,
+    clearcoat: 0.85,
+    clearcoatRoughness: 0.12,
+    envMapIntensity: 1.15,
   })
-  return mat
 }
 
-function wheel(): THREE.Mesh {
-  return new THREE.Mesh(tireGeo, tireMat)
+function wheel(): THREE.Group {
+  const g = new THREE.Group()
+  const tire = new THREE.Mesh(tireGeo, tireMat)
+  tire.scale.x = 1.25
+  tire.castShadow = true
+  const rim = new THREE.Mesh(rimGeo, rimMat)
+  rim.castShadow = true
+  g.add(tire, rim)
+  return g
 }
 
 function addTail(group: THREE.Group, mat: THREE.MeshBasicMaterial, x: number, y: number, z: number, w = 0.42): void {
@@ -91,12 +110,19 @@ export function createVehicle(kind: VehKind, color = 0xd8d4ea): VehModel {
     hw = kind === 'police' ? 0.84 : 0.8
     hl = 2.15
     height = kind === 'police' ? 1.42 : 1.16
-    const body = new THREE.Mesh(new THREE.BoxGeometry(hw * 2, 0.48, 4.2), bodyMat)
-    body.position.set(0, 0.58, 0)
-    group.add(body)
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(hw * 1.55, 0.36, 1.7), glassMat)
-    cabin.position.set(0, 0.96, -0.25)
+    const body = new THREE.Mesh(new THREE.BoxGeometry(hw * 2, 0.42, 4.15), bodyMat)
+    body.position.set(0, 0.52, 0)
+    body.castShadow = true
+    const hood = new THREE.Mesh(new THREE.BoxGeometry(hw * 1.7, 0.16, 1.5), bodyMat)
+    hood.position.set(0, 0.72, 1.05)
+    hood.castShadow = true
+    group.add(body, hood)
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(hw * 1.5, 0.32, 1.55), glassMat)
+    cabin.position.set(0, 0.9, -0.28)
     group.add(cabin)
+    const bumper = new THREE.Mesh(new THREE.BoxGeometry(hw * 1.7, 0.06, 0.08), chromeMat)
+    bumper.position.set(0, 0.4, 2.08)
+    group.add(bumper)
     placeWheel(-hw + 0.08, 1.25)
     placeWheel(hw - 0.08, 1.25)
     placeWheel(-hw + 0.08, -1.25)
@@ -124,15 +150,19 @@ export function createVehicle(kind: VehKind, color = 0xd8d4ea): VehModel {
     hw = 0.9
     hl = 2.05
     height = 1.02
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.38, 4.05), bodyMat)
-    body.position.set(0, 0.5, 0.05)
-    group.add(body)
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.28, 1.35), glassMat)
-    cabin.position.set(0, 0.78, -0.35)
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.32, 4.0), bodyMat)
+    body.position.set(0, 0.46, 0.05)
+    body.castShadow = true
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, 1.3), bodyMat)
+    deck.position.set(0, 0.64, 0.85)
+    deck.castShadow = true
+    group.add(body, deck)
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.24, 1.2), glassMat)
+    cabin.position.set(0, 0.74, -0.32)
     group.add(cabin)
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.05, 0.32), bodyMat)
-    wing.position.set(0, 0.92, -1.7)
-    group.add(wing)
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.03, 0.18), bodyMat)
+    lip.position.set(0, 0.72, -1.85)
+    group.add(lip)
     placeWheel(-0.82, 1.2)
     placeWheel(0.82, 1.2)
     placeWheel(-0.86, -1.25)
@@ -145,10 +175,15 @@ export function createVehicle(kind: VehKind, color = 0xd8d4ea): VehModel {
     height = 2.32
     const cab = new THREE.Mesh(new THREE.BoxGeometry(1.95, 1.35, 2.15), bodyMat)
     cab.position.set(0, 1.15, 1.55)
+    cab.castShadow = true
     group.add(cab)
     const bed = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.15, 3.7), bodyMat)
     bed.position.set(0, 1.05, -1.35)
+    bed.castShadow = true
     group.add(bed)
+    const chromeBar = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.08, 0.08), chromeMat)
+    chromeBar.position.set(0, 0.7, 2.6)
+    group.add(chromeBar)
     const cabGlass = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.48, 0.9), glassMat)
     cabGlass.position.set(0, 1.55, 1.85)
     group.add(cabGlass)
@@ -169,6 +204,7 @@ export function createVehicle(kind: VehKind, color = 0xd8d4ea): VehModel {
     height = 2.12
     const body = new THREE.Mesh(new THREE.BoxGeometry(1.95, 1.55, 8.2), bodyMat)
     body.position.set(0, 1.25, 0)
+    body.castShadow = true
     group.add(body)
     const winL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.48, 6.4), windowMat)
     winL.position.set(-0.98, 1.55, -0.2)
