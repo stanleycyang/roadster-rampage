@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="description" content="Roadster Rampage — a synthwave endless highway. Jump traffic, fire cold-gas thrusters, and chase the combo." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+    <title>Roadster Rampage</title>
+  </head>
+  <body class="mode-title">
+    <canvas id="view"></canvas>
+    <div id="vignette"></div>
+    <div id="flash"></div>
+
+    <div id="hud">
+      <div class="hud-top">
+        <div class="stat">
+          <span class="label">Score</span>
+          <span id="scoreVal">0</span>
+        </div>
+        <div class="speedo">
+          <div id="speedVal">0</div>
+          <div class="unit">KM/H</div>
+        </div>
+        <div class="stat right">
+          <span class="label">Distance</span>
+          <span id="distVal">0 m</span>
+        </div>
+      </div>
+      <div id="comboWrap">
+        <div id="combo">x1</div>
+        <div id="comboTrack"><div id="comboFill"></div></div>
+      </div>
+      <div id="eventBanner"></div>
+      <div id="hint"></div>
+      <canvas id="radar" width="180" height="250"></canvas>
+      <div id="badges">
+        <span id="shieldBadge">Shield</span>
+        <span id="magnetBadge">Magnet</span>
+        <span id="ludiBadge">Ludicrous</span>
+      </div>
+      <div id="boostCluster">
+        <div class="boost-label">Cold gas</div>
+        <div id="boostTrack"><div id="boostFill"></div></div>
+      </div>
+      <button id="pauseBtn" class="ghost-btn" type="button">Pause</button>
+    </div>
+
+    <div id="toasts"></div>
+    <div id="replayTag">Slow-mo replay</div>
+
+    <div id="title">
+      <div class="title-card">
+        <p class="eyebrow">Endless night run</p>
+        <h1><span>Roadster</span><span class="accent">Rampage</span></h1>
+        <p class="tag">Cold gas. Hot asphalt. Don't blink.</p>
+        <div id="helpDesktop" class="help">
+          <p><kbd>A</kbd><kbd>D</kbd> steer &nbsp; <kbd>W</kbd> throttle &nbsp; <kbd>S</kbd> brake</p>
+          <p><kbd>Space</kbd> jump — hold to fire cold-gas thrusters</p>
+          <p><kbd>Q</kbd><kbd>E</kbd> barrel roll in the air &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> mute</p>
+        </div>
+        <div id="helpTouch" class="help">
+          <p>Steer with the arrows. Gas to pass, brake to live.</p>
+          <p>Hold <b>Jump</b> to glide on cold-gas thrusters.</p>
+          <p>Tap steer in the air to barrel roll for style.</p>
+        </div>
+        <button id="startBtn" class="start" type="button">Start run</button>
+        <p id="titleBest" class="best"></p>
+      </div>
+    </div>
+
+    <div id="pause">
+      <div class="panel">
+        <p class="eyebrow">Hold up</p>
+        <h2>Paused</h2>
+        <p>The highway can wait. The combo cannot.</p>
+        <button id="resumeBtn" class="start" type="button">Resume</button>
+      </div>
+    </div>
+
+    <div id="score">
+      <div class="panel score-panel">
+        <p id="scoreFlavor" class="eyebrow"></p>
+        <h2 id="scoreBig">0</h2>
+        <p id="newRecord" class="record">New record</p>
+        <div id="scoreGrid"></div>
+        <p id="scoreBest" class="best"></p>
+        <div class="row">
+          <button id="restartBtn" class="start" type="button">Ride again</button>
+          <button id="menuBtn" class="ghost-btn" type="button">Title</button>
+        </div>
+      </div>
+    </div>
+
+    <button id="muteBtn" class="mute" type="button">Sound</button>
+
+    <div id="touch">
+      <div class="touch-left">
+        <button id="btnLeft" type="button" aria-label="Steer left">◀</button>
+        <button id="btnRight" type="button" aria-label="Steer right">▶</button>
+      </div>
+      <div class="touch-right">
+        <div class="touch-small">
+          <button id="btnGas" type="button">Gas</button>
+          <button id="btnBrake" type="button">Brake</button>
+        </div>
+        <button id="btnJump" type="button">Jump</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
