@@ -72,6 +72,12 @@ export class UI {
     this.muteBtn.addEventListener('click', handlers.mute)
     this.must('qualityBtn').addEventListener('click', handlers.quality)
     this.must('skinBtn').addEventListener('click', handlers.skin)
+    // Controls used during play must return focus to the game after activation.
+    for (const id of ['muteBtn', 'qualityBtn', 'pauseBtn', 'resumeBtn']) {
+      this.must(id).addEventListener('click', () => {
+        if (document.body.classList.contains('mode-playing')) this.must(id).blur()
+      })
+    }
     const touch = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 || window.innerWidth < 780
     if (touch) document.body.classList.add('touch')
   }
@@ -83,6 +89,7 @@ export class UI {
   }
 
   setMode(mode: Mode): void {
+    if (mode === 'playing' && document.activeElement instanceof HTMLElement) document.activeElement.blur()
     document.body.classList.remove('mode-title', 'mode-playing', 'mode-paused', 'mode-replay', 'mode-score')
     const cls = mode === 'playing' ? 'mode-playing' : mode === 'paused' ? 'mode-paused' : mode === 'replay' ? 'mode-replay' : mode === 'score' ? 'mode-score' : 'mode-title'
     document.body.classList.add(cls)

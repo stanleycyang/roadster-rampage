@@ -476,3 +476,18 @@ body.touch #hint { bottom: calc(214px + env(safe-area-inset-bottom)); }
 .credits-link { margin: 16px 0 0; font-size: 14px; line-height: 1.5; }
 .credits-link a { color: var(--cyan); text-underline-offset: 3px; }
 .credits-link a:focus-visible { outline: 2px solid var(--amber); outline-offset: 4px; }
+
+/* Scroll menus independently without capturing driving gestures. */
+.title-card, .score-panel { max-height: calc(100dvh - 80px); overflow-y: auto; touch-action: pan-y; }
+.leaderboard { margin-top: 18px; padding-top: 12px; border-top: 1px solid #7af6ff66; text-align: left; font-size: 16px; }
+.leaderboard h3 { margin: 0 0 8px; color: var(--cyan); }
+.leaderboard p { margin: 8px 0; line-height: 1.35; }
+.leaderboard ol { max-height: 180px; overflow-y: auto; padding-left: 30px; touch-action: pan-y; }
+.leaderboard li { padding: 6px 0; }
+.leaderboard button { min-height: 44px; padding: 10px; margin: 4px 8px 4px 0; background: var(--ink); border: 1px solid var(--cyan); color: var(--paper); cursor: pointer; font-size: 12px; }
+button:disabled { opacity: .6; cursor: default; }
+button:focus-visible, .leaderboard:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+@media (max-width: 800px) {
+  .title-card, .score-panel { padding: 18px; max-height: calc(100dvh - 65px); }
+  .score-panel { width: 100%; }
+}
