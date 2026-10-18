@@ -9,6 +9,9 @@ try {
   game.start()
 } catch (err) {
   console.error(err)
-  const message = err instanceof Error ? err.message : String(err)
-  document.body.innerHTML = `<pre style="color:#fff;padding:24px;font:14px/1.4 monospace">${message}</pre>`
+  const message = document.createElement('p')
+  message.style.cssText = 'color:#fff;padding:24px;font:16px/1.5 sans-serif'
+  message.setAttribute('role', 'alert')
+  message.textContent = 'Roadster Rampage could not start. Try reloading, or use a browser with WebGL 2 and hardware acceleration enabled.'
+  document.body.replaceChildren(message)
 }

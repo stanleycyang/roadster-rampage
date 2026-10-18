@@ -649,7 +649,6 @@ export class Game {
 
   private updatePost(): void {
     const speedN = clamp((this.player.speed - 24) / 75, 0, 1)
-    const night = 1 - clamp((Math.cos(((this.player.z % 11000) / 11000) * Math.PI * 2) * 0.5 + 0.5), 0, 1)
     const ludi = this.player.ludicrous > 0 ? 1 : 0
     this.bokeh.enabled = this.high && !this.beauty
     this.bloom.strength = (this.beauty ? 0.08 : 0.12) + ludi * 0.14
