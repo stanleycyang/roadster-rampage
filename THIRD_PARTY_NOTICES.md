@@ -2,7 +2,7 @@
 
 Roadster Rampage is created by [Stanley (@stanleycyang)](https://github.com/stanleycyang).
 
-**Created with Grok**, with additional development and documentation assistance from Codex.
+Development and documentation assisted by Codex.
 
 ## Open-source tools
 

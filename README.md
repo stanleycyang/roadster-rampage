@@ -151,7 +151,7 @@ Push to your Vercel project's production branch to deploy. Test the resulting UR
 
 ## Credits & licensing
 
-**Created by [Stanley (@stanleycyang)](https://github.com/stanleycyang). Created with Grok**, with additional development and documentation assistance from Codex.
+**Created by [Stanley (@stanleycyang)](https://github.com/stanleycyang).** Development and documentation assisted by Codex.
 
 Built with [Three.js](https://threejs.org/), [Vite](https://vite.dev/), and [TypeScript](https://www.typescriptlang.org/). The interface uses Orbitron and Rajdhani via Google Fonts. Music and sound effects are synthesized with the Web Audio API; game meshes and textures are constructed in code.
 
