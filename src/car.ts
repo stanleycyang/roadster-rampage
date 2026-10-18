@@ -11,7 +11,7 @@ export interface CarVisual {
   rollT: number
   shield: boolean
   magnet: boolean
-  ludicrous: number
+  overdrive: number
   time: number
 }
 
@@ -551,9 +551,9 @@ export class Roadster {
     this.magnetRing.visible = v.magnet
     if (v.magnet) this.magnetRing.rotation.z += dt * 2.2
 
-    const ludi = v.ludicrous > 0
-    this.pearl.emissive.setRGB(ludi ? 0.25 : 0, ludi ? 0.12 : 0, ludi ? 0.2 : 0)
-    this.pearl.emissiveIntensity = ludi ? 0.45 : 0
+    const overdrive = v.overdrive > 0
+    this.pearl.emissive.setRGB(overdrive ? 0.25 : 0, overdrive ? 0.12 : 0, overdrive ? 0.2 : 0)
+    this.pearl.emissiveIntensity = overdrive ? 0.45 : 0
   }
 
   updateShadow(x: number, y: number, z: number): void {

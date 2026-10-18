@@ -9,6 +9,7 @@ An endless synthwave highway, a supercar with thrusters, and one more run.
 Built in TypeScript and Three.js. Play with a keyboard or touch controls.
 
 [![Production build](https://github.com/stanleycyang/roadster-rampage/actions/workflows/ci.yml/badge.svg)](https://github.com/stanleycyang/roadster-rampage/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-7af6ff?style=flat-square&labelColor=10091b)](LICENSE)
 ![Node.js 24](https://img.shields.io/badge/Node.js-24_LTS-7af6ff?style=flat-square&labelColor=10091b)
 ![Three.js](https://img.shields.io/badge/Three.js-WebGL_2-ff3d9a?style=flat-square&labelColor=10091b)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-ffc857?style=flat-square&labelColor=10091b)
@@ -23,13 +24,13 @@ Built in TypeScript and Three.js. Play with a keyboard or touch controls.
 
 Weave through traffic. Vault a bus. Hold jump to fire your cold-gas thrusters, then roll through the air to keep the combo alive. The road keeps going. Your luck might not.
 
-Roadster Rampage is a browser arcade game with an original car, a procedural city, and a synthesized soundtrack built in code. No account or backend is needed to play; your best score, distance, and combo stay in your browser.
+Roadster Rampage is a browser arcade game with a procedural car, a procedural city, and a synthesized soundtrack built in code. No account or backend is needed to play; your best score, distance, and combo stay in your browser.
 
 | On the road | In the air | After dark |
 | :--- | :--- | :--- |
 | Dodge cars, trucks, and buses across five lanes. Stack near misses and collect coins. | Jump traffic, hold to glide, and barrel roll for style points. Manage your boost to stick the landing. | Chase combos through rain, neon tunnels, police pursuits, and a changing sunset-to-night sky. |
 
-Pick up shields, magnets, and boost canisters. Hit **Ludicrous Mode** to slow time and turn up the glow. A crash gets a slow-motion replay, a scorecard, and a reason to try again.
+Pick up shields, magnets, and boost canisters. Hit **Overdrive Mode** to slow time and turn up the glow. A crash gets a slow-motion replay, a scorecard, and a reason to try again.
 
 ![Gameplay showing the highway, car, score, speed, and cold-gas boost meter](docs/images/gameplay.jpg)
 
@@ -88,7 +89,7 @@ Open `http://localhost:47331/?debug` to enable these shortcuts:
 
 | Key | Effect |
 | :--- | :--- |
-| `L` | Activate Ludicrous Mode |
+| `L` | Activate Overdrive Mode |
 | `G` | Give the player a shield |
 | `B` | Refill boost |
 | `N` | Advance 4,000 meters |
@@ -150,9 +151,13 @@ Push to your Vercel project's production branch to deploy. Test the resulting UR
 
 ## Credits & licensing
 
-Rendering by [Three.js](https://threejs.org/), tooling by [Vite](https://vite.dev/), and type checking by [TypeScript](https://www.typescriptlang.org/). The interface uses Orbitron and Rajdhani via Google Fonts. The car, city, and soundtrack are original and built in code.
+**Created by [Stanley (@stanleycyang)](https://github.com/stanleycyang).** Development and documentation assisted by Codex.
 
-A project license has not been selected yet. See this section for an update before redistributing the project or incorporating its code into another project. Third-party dependencies retain their own licenses.
+Built with [Three.js](https://threejs.org/), [Vite](https://vite.dev/), and [TypeScript](https://www.typescriptlang.org/). The interface uses Orbitron and Rajdhani via Google Fonts. Music and sound effects are synthesized with the Web Audio API; game meshes and textures are constructed in code.
+
+**[MIT licensed](LICENSE).** Fork it, experiment, and share what you build. See [third-party credits and notices](THIRD_PARTY_NOTICES.md) for component and font licenses.
+
+Roadster Rampage is an independent, unofficial arcade game inspired by futuristic flying sports cars. It is not affiliated with, endorsed by, sponsored by, or authorized by Tesla, Inc.
 
 ---
 

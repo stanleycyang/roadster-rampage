@@ -11,7 +11,7 @@ export interface HudState {
   boost: number
   shield: boolean
   magnet: boolean
-  ludicrous: boolean
+  overdrive: boolean
   lowBoost: boolean
 }
 
@@ -44,7 +44,7 @@ export class UI {
   private readonly boostCluster = this.must('boostCluster')
   private readonly shieldBadge = this.must('shieldBadge')
   private readonly magnetBadge = this.must('magnetBadge')
-  private readonly ludiBadge = this.must('ludiBadge')
+  private readonly overdriveBadge = this.must('overdriveBadge')
   private readonly hud = this.must('hud')
   private readonly toasts = this.must('toasts')
   private readonly titleBest = this.must('titleBest')
@@ -136,8 +136,8 @@ export class UI {
     this.boostCluster.classList.toggle('low', state.lowBoost)
     this.shieldBadge.classList.toggle('on', state.shield)
     this.magnetBadge.classList.toggle('on', state.magnet)
-    this.ludiBadge.classList.toggle('on', state.ludicrous)
-    this.hud.classList.toggle('ludicrous', state.ludicrous)
+    this.overdriveBadge.classList.toggle('on', state.overdrive)
+    this.hud.classList.toggle('overdrive', state.overdrive)
   }
 
   resetScoreTicker(score: number): void {

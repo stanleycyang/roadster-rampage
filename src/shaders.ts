@@ -167,7 +167,7 @@ export const SpeedShader = {
     tDiffuse: { value: null as null },
     uSpeed: { value: 0 },
     uTime: { value: 0 },
-    uLudi: { value: 0 },
+    uOverdrive: { value: 0 },
     uAspect: { value: 1 },
     uFlash: { value: 0 },
   },
@@ -182,14 +182,14 @@ export const SpeedShader = {
     uniform sampler2D tDiffuse;
     uniform float uSpeed;
     uniform float uTime;
-    uniform float uLudi;
+    uniform float uOverdrive;
     uniform float uAspect;
     uniform float uFlash;
     varying vec2 vUv;
     void main() {
       vec2 center = vec2(0.5, 0.45);
       float speed = clamp(uSpeed, 0.0, 1.0);
-      float blur = smoothstep(0.22, 1.0, speed) * 0.012 * (1.0 - uLudi * 0.65);
+      float blur = smoothstep(0.22, 1.0, speed) * 0.012 * (1.0 - uOverdrive * 0.65);
       vec2 dir = vUv - center;
       vec2 streak = vec2(0.0, blur * 1.6);
       vec3 col = vec3(0.0);
@@ -208,14 +208,14 @@ export const SpeedShader = {
       float ang = atan(p.y, p.x);
       float r = length(p);
       float rays = pow(abs(sin(ang * 22.0 + uTime * (1.5 + speed * 8.0))), 48.0);
-      float rayMask = smoothstep(0.22, 0.95, r) * smoothstep(0.25, 0.7, speed) * (1.0 - uLudi * 0.85);
+      float rayMask = smoothstep(0.22, 0.95, r) * smoothstep(0.25, 0.7, speed) * (1.0 - uOverdrive * 0.85);
       col += rays * rayMask * vec3(0.65, 0.85, 1.0) * 0.28;
 
       float vig = smoothstep(1.2, 0.25, length(p));
       col *= mix(0.62, 1.0, vig);
 
-      col *= 1.0 + uLudi * 0.08;
-      col += vec3(0.45, 0.05, 0.22) * uLudi * 0.12;
+      col *= 1.0 + uOverdrive * 0.08;
+      col += vec3(0.45, 0.05, 0.22) * uOverdrive * 0.12;
       col = mix(col, vec3(1.0), clamp(uFlash, 0.0, 1.0));
       gl_FragColor = vec4(col, 1.0);
     }

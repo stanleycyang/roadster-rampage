@@ -97,7 +97,7 @@ export class Game {
     this.player = {
       x: 0, y: 0, z: 0, vx: 0, vy: 0, speed: 40, onGround: true, coyote: 0,
       boosting: false, boost: 72, rolling: false, rollDir: 1, rollT: 0,
-      shield: false, magnet: 0, ludicrous: 0, invuln: 0, jumpBuf: 0,
+      shield: false, magnet: 0, overdrive: 0, invuln: 0, jumpBuf: 0,
       steer: 0, gas: false, brake: false,
     }
     this.sim = new Simulation(this.player)
@@ -194,15 +194,15 @@ export class Game {
   private updateLive(dt: number): void {
     const playing = this.mode === 'playing'
     const input = playing ? this.readInput() : this.attractInput()
-    const ludi = this.player.ludicrous > 0
-    const worldDt = dt * (ludi ? 0.46 : 1)
+    const overdrive = this.player.overdrive > 0
+    const worldDt = dt * (overdrive ? 0.46 : 1)
     const events = this.sim.update(worldDt, dt, input, !playing)
     this.handleEvents(events)
     if (playing) {
       const dz = this.player.z - this.lastZ
-      if (dz > 0) this.score += dz * (5 + this.combo * 1.5) * (ludi ? 2 : 1)
+      if (dz > 0) this.score += dz * (5 + this.combo * 1.5) * (overdrive ? 2 : 1)
       this.topSpeed = Math.max(this.topSpeed, this.player.speed)
-      if (this.combo > 1 && !ludi) {
+      if (this.combo > 1 && !overdrive) {
         this.comboTimer -= dt
         if (this.comboTimer <= 0) {
           this.combo = 1
@@ -329,9 +329,9 @@ export class Game {
         this.audio.pickup()
         this.ui.toast('MAGNET')
         break
-      case 'ludicrous':
-        this.audio.ludicrous()
-        this.ui.banner('LUDICROUS MODE', '#ff4ad4')
+      case 'overdrive':
+        this.audio.overdrive()
+        this.ui.banner('OVERDRIVE MODE', '#ff4ad4')
         this.ui.toast('TIME SLOWS', 'epic')
         this.flash = Math.max(this.flash, 0.22)
         break
@@ -406,7 +406,7 @@ export class Game {
   }
 
   private mult(): number {
-    return this.combo * (this.player.ludicrous > 0 ? 2 : 1)
+    return this.combo * (this.player.overdrive > 0 ? 2 : 1)
   }
 
   private beginReplay(): void {
@@ -550,7 +550,7 @@ export class Game {
       rollT: p.rollT,
       shield: p.shield,
       magnet: p.magnet > 0,
-      ludicrous: p.ludicrous,
+      overdrive: p.overdrive,
       time: this.time,
     })
     this.car.setPitchFromVelocity(p.vy, !p.onGround, p.boosting, dt)
@@ -590,7 +590,7 @@ export class Game {
     this.world.update(dt, this.player, this.sim.rainT > 0, this.sim.inTunnel, this.lightning)
     this.fx.update(dt, this.player.x, this.player.z, this.sim.rainT > 0, this.player.speed)
     const mode = this.mode === 'title' ? 'title' : this.mode === 'replay' ? 'replay' : 'playing'
-    this.audio.update(this.player.speed, mode, this.sim.inTunnel, this.sim.rainT > 0, this.sim.policeT > 0, this.player.ludicrous > 0, this.player.gas)
+    this.audio.update(this.player.speed, mode, this.sim.inTunnel, this.sim.rainT > 0, this.sim.policeT > 0, this.player.overdrive > 0, this.player.gas)
   }
 
   private updateCamera(dt: number): void {
@@ -642,18 +642,18 @@ export class Game {
     cam.lookAt(this.look)
     const roll = (-p.steer * 0.045) + (p.rolling ? 0 : this.car.lean.rotation.z * -0.12)
     cam.rotateZ(roll)
-    const targetFov = (title ? 62 : 66) + speedN * 16 + (p.boosting ? 5 : 0) + (p.ludicrous > 0 ? 8 : 0)
+    const targetFov = (title ? 62 : 66) + speedN * 16 + (p.boosting ? 5 : 0) + (p.overdrive > 0 ? 8 : 0)
     cam.fov += (targetFov - cam.fov) * (1 - Math.exp(-4 * dt))
     cam.updateProjectionMatrix()
   }
 
   private updatePost(): void {
     const speedN = clamp((this.player.speed - 24) / 75, 0, 1)
-    const ludi = this.player.ludicrous > 0 ? 1 : 0
+    const overdrive = this.player.overdrive > 0 ? 1 : 0
     this.bokeh.enabled = this.high && !this.beauty
-    this.bloom.strength = (this.beauty ? 0.08 : 0.12) + ludi * 0.14
-    this.bloom.threshold = ludi ? 1.2 : 1.7
-    this.bloom.radius = 0.35 + ludi * 0.08
+    this.bloom.strength = (this.beauty ? 0.08 : 0.12) + overdrive * 0.14
+    this.bloom.threshold = overdrive ? 1.2 : 1.7
+    this.bloom.radius = 0.35 + overdrive * 0.08
     const u = this.speedPass.uniforms
     const set = (name: string, value: number) => {
       const slot = u[name]
@@ -661,7 +661,7 @@ export class Game {
     }
     set('uSpeed', this.mode === 'replay' ? 0.25 : speedN)
     set('uTime', this.time)
-    set('uLudi', ludi)
+    set('uOverdrive', overdrive)
     set('uFlash', Math.max(this.flash, this.lightning * 0.55))
     const focus = this.world.camera.position.distanceTo(this.beauty ? this.car.root.position : this.look)
     const bu = this.bokeh.uniforms as Record<string, { value: number }>
@@ -680,7 +680,7 @@ export class Game {
       boost: this.player.boost,
       shield: this.player.shield,
       magnet: this.player.magnet > 0,
-      ludicrous: this.player.ludicrous > 0,
+      overdrive: this.player.overdrive > 0,
       lowBoost: this.player.boost < 18,
     })
     this.ui.drawRadar(
@@ -753,7 +753,7 @@ export class Game {
   }
 
   private readonly onDebug = (e: KeyboardEvent): void => {
-    if (e.code === 'KeyL') this.player.ludicrous = 6.5
+    if (e.code === 'KeyL') this.player.overdrive = 6.5
     if (e.code === 'KeyG') this.player.shield = true
     if (e.code === 'KeyB') this.player.boost = 100
     if (e.code === 'KeyN') this.player.z += 4000
