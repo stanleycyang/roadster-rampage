@@ -1,6 +1,6 @@
 # Global leaderboard
 
-Implementation is offline-tested and disabled by default. Nothing has been provisioned, pushed, deployed, or written to a hosted datastore.
+Implementation is offline-tested and disabled by default. The deployment-disabled feature branch is published as [draft PR #2](https://github.com/stanleycyang/roadster-rampage/pull/2) with owner approval. Nothing has been provisioned, deployed, merged, or written to a hosted datastore.
 
 ## Design
 
@@ -59,7 +59,15 @@ Inspected baseline/main: `1b89f3b3c0a695fc7c02162ae836fd54849115aa`; GitHub repo
 
 `.github/workflows/ci.yml` runs on **every push and pull request**, with read-only contents permission, npm install, tests and build. It contains no deployment step. Vercel Git integration is separate: unspecified branches default to deployment enabled. This branch adds `feature/global-leaderboard: false` alongside the existing release-branch block; `main` is still deployment-enabled by default. See [Vercel Git configuration](https://vercel.com/docs/project-configuration/git-configuration).
 
-Do not push or create a PR until the owner approves publication and verifies the linked Vercel project's deployment settings. Verify the branch block is honored before the first push (including account/dashboard overrides), or disable Git deployments in that project through a separately authorized action. A draft PR alone is not a deployment barrier. Keep activation variables absent. Push only the reviewed exact feature-branch commit after approval; do not merge into main until production rollout is separately approved. No push, PR, comments, merge or deployment was performed here.
+The owner approved publishing the feature branch and opening [draft PR #2](https://github.com/stanleycyang/roadster-rampage/pull/2). Before publication, remote main and open PRs were rechecked, the exact feature-branch deployment block was verified, and the repository was confirmed public with standard Ubuntu CI. After publication, the scoped Vercel deployment list returned no deployments for the feature branch. A draft PR alone is not a deployment barrier: retain the explicit branch block and keep activation variables absent. No merge or production rollout is authorized. No deployment, provisioning, credentials attachment, or hosted datastore writes were performed.
+
+### Upstash Free setup handoff
+
+The existing official Upstash integration offers plan ID `free` (500,000 commands/month, one database per account, no payment method required). The catalog labels even this free resource plan as type `subscription`; do not enroll or fall back to any paid plan without the required confirmation. Free-slot availability cannot be established from the exposed resource inventory tools.
+
+The proposed provider-side action is to create a separate `roadster-rampage-leaderboard` Redis resource through the existing `testimonio` Upstash integration, selecting Free, primary region `iad1`, no extra read regions, eviction off, Prod Pack off, and automatic upgrade off. Confirm the free slot in the authenticated provider dashboard first; if unavailable, stop without purchasing or reusing Faroway storage. Creation can generate database credentials, so pause before confirming resource creation. Any subsequent attachment to Roadster environment variables is a separate credential transmission and persistent-access step requiring explicit confirmation of the destination environment. Do not select all projects, attach production credentials to previews, expose secret values, or accept new legal terms automatically.
+
+The resource request would share the existing team/integration identity, resource name, plan and region/options with Vercel and Upstash. Attachment would make newly generated database connection credentials available to the selected Roadster server environment. It would not require repository source, saved scores, or Faroway data. No such creation, attachment, or secret generation/transmission has occurred. See the [official integration flow](https://upstash.com/docs/redis/howto/vercelintegration).
 
 ## Estimated costs — verified 2026-10-18, not an activation
 
