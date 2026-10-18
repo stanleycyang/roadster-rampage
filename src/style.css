@@ -96,7 +96,7 @@ body.mode-replay #hud { opacity: 0.55; }
   font-size: 12px;
   color: var(--magenta);
 }
-body.ludicrous #speedVal, #hud.ludicrous #speedVal {
+body.overdrive #speedVal, #hud.overdrive #speedVal {
   color: #ff7ae0;
   text-shadow: 0 0 22px rgba(255, 61, 154, 0.85);
 }
@@ -206,7 +206,7 @@ body.ludicrous #speedVal, #hud.ludicrous #speedVal {
 }
 #shieldBadge.on { color: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 12px rgba(122, 246, 255, 0.35); }
 #magnetBadge.on { color: var(--magenta); border-color: var(--magenta); }
-#ludiBadge.on { color: #ff7ae0; border-color: #ff7ae0; box-shadow: 0 0 14px rgba(255, 61, 154, 0.45); }
+#overdriveBadge.on { color: #ff7ae0; border-color: #ff7ae0; box-shadow: 0 0 14px rgba(255, 61, 154, 0.45); }
 
 #boostCluster {
   position: absolute;
@@ -472,3 +472,7 @@ body.touch #hint { bottom: calc(214px + env(safe-area-inset-bottom)); }
   #qualityBtn { right: 204px; }
   #hint { font-size: 11px; letter-spacing: 0.08em; }
 }
+
+.credits-link { margin: 16px 0 0; font-size: 14px; line-height: 1.5; }
+.credits-link a { color: var(--cyan); text-underline-offset: 3px; }
+.credits-link a:focus-visible { outline: 2px solid var(--amber); outline-offset: 4px; }

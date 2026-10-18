@@ -42,17 +42,17 @@ export class AudioEngine {
     this.applyMute()
   }
 
-  update(speed: number, mode: Mode, tunnel: boolean, rain: boolean, police: boolean, ludi: boolean, gas: boolean): void {
+  update(speed: number, mode: Mode, tunnel: boolean, rain: boolean, police: boolean, overdrive: boolean, gas: boolean): void {
     const ctx = this.ctx
     if (!ctx || !this.master || !this.engineGain || !this.engA || !this.engB || !this.musicFilter || !this.windGain || !this.rainGain || !this.sirenGain || !this.sirenA || !this.sirenB || !this.musicGain) return
     const t = ctx.currentTime
     const moving = mode === 'playing' || mode === 'title'
-    const f = 38 + speed * 0.9 + (gas ? 12 : 0) + (ludi ? 20 : 0)
+    const f = 38 + speed * 0.9 + (gas ? 12 : 0) + (overdrive ? 20 : 0)
     this.engA.frequency.setTargetAtTime(f, t, 0.05)
     this.engB.frequency.setTargetAtTime(f * 0.5, t, 0.08)
     const eg = moving ? 0.018 + Math.min(0.07, speed * 0.00075) : mode === 'replay' ? 0.01 : 0
     this.engineGain.gain.setTargetAtTime(eg, t, 0.06)
-    const cutoff = tunnel ? 280 : 700 + speed * 16 + (ludi ? 1600 : 0)
+    const cutoff = tunnel ? 280 : 700 + speed * 16 + (overdrive ? 1600 : 0)
     this.musicFilter.frequency.setTargetAtTime(cutoff, t, 0.15)
     const music = mode === 'paused' ? 0.05 : mode === 'replay' || mode === 'score' ? 0.045 : 0.11
     this.musicGain.gain.setTargetAtTime(music, t, 0.1)
@@ -109,7 +109,7 @@ export class AudioEngine {
     this.noiseHit(0.7, 0.22, 140, 'lowpass')
   }
 
-  ludicrous(): void {
+  overdrive(): void {
     const ctx = this.ensure()
     if (!ctx || !this.sfxGain) return
     const notes = [440, 554, 659, 880]

@@ -14,7 +14,7 @@ export interface Player {
   rollT: number
   shield: boolean
   magnet: number
-  ludicrous: number
+  overdrive: number
   invuln: number
   jumpBuf: number
   steer: number
@@ -34,7 +34,7 @@ export interface FrameInput {
 
 export type VaultTier = 'close' | 'vault' | 'fly'
 
-export type PowerKind = 'boost' | 'shield' | 'magnet' | 'ludicrous'
+export type PowerKind = 'boost' | 'shield' | 'magnet' | 'overdrive'
 
 export type VehKind = 'sedan' | 'sport' | 'truck' | 'bus' | 'police'
 
@@ -50,7 +50,7 @@ export type GameEvent =
   | { type: 'boost' }
   | { type: 'shield'; fresh: boolean }
   | { type: 'magnet' }
-  | { type: 'ludicrous' }
+  | { type: 'overdrive' }
   | { type: 'ramp' }
   | { type: 'scrape'; x: number; z: number; side: number }
   | { type: 'police' }

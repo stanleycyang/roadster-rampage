@@ -108,12 +108,12 @@ function makePowerup(): Powerup {
     new THREE.TorusGeometry(0.36, 0.08, 8, 16),
     new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(1.7, 0.2, 1.0), toneMapped: false }),
   )
-  const ludicrous = new THREE.Mesh(
+  const overdrive = new THREE.Mesh(
     new THREE.IcosahedronGeometry(0.4, 0),
     new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(1.8, 0.3, 1.2), toneMapped: false }),
   )
   boost.rotation.z = Math.PI / 2
-  root.add(boost, shield, magnet, ludicrous)
+  root.add(boost, shield, magnet, overdrive)
   root.visible = false
   return {
     mesh: root,
@@ -123,7 +123,7 @@ function makePowerup(): Powerup {
     y: 1.3,
     z: 0,
     phase: Math.random() * 5,
-    show: { boost, shield, magnet, ludicrous },
+    show: { boost, shield, magnet, overdrive },
   }
 }
 
@@ -214,7 +214,7 @@ export class Simulation {
   private nextBoost = 420
   private nextShield = 500
   private nextMagnet = 900
-  private nextLudi = 1300
+  private nextOverdrive = 1300
   private lastKm = 0
   private scrapeCd = 0
   private wasRain = false
@@ -277,7 +277,7 @@ export class Simulation {
     this.nextBoost = 430
     this.nextShield = 520
     this.nextMagnet = 920
-    this.nextLudi = 1320
+    this.nextOverdrive = 1320
     this.lastKm = 0
     this.scrapeCd = 0
     const p = this.player
@@ -296,7 +296,7 @@ export class Simulation {
     p.rollT = 0
     p.shield = false
     p.magnet = 0
-    p.ludicrous = 0
+    p.overdrive = 0
     p.invuln = 0.7
     p.jumpBuf = 0
     p.steer = 0
@@ -321,7 +321,7 @@ export class Simulation {
     this.ghost = ghost
     if (this.over && !ghost) return this.events
     const p = this.player
-    if (p.ludicrous > 0) p.ludicrous = Math.max(0, p.ludicrous - realDt)
+    if (p.overdrive > 0) p.overdrive = Math.max(0, p.overdrive - realDt)
     if (p.magnet > 0) p.magnet = Math.max(0, p.magnet - realDt)
     if (this.rainT > 0) this.rainT = Math.max(0, this.rainT - realDt)
     if (this.policeT > 0) this.policeT = Math.max(0, this.policeT - realDt)
@@ -604,9 +604,9 @@ export class Simulation {
       p.magnet = 8.5
       this.events.push({ type: 'magnet' })
     } else {
-      p.ludicrous = 6.5
+      p.overdrive = 6.5
       p.boost = clamp(p.boost + 28, 0, BOOST_MAX)
-      this.events.push({ type: 'ludicrous' })
+      this.events.push({ type: 'overdrive' })
     }
   }
 
@@ -788,9 +788,9 @@ export class Simulation {
       this.dropPower('magnet', this.nextMagnet)
       this.nextMagnet += 900 + this.rng() * 180
     }
-    while (this.nextLudi < horizon) {
-      this.dropPower('ludicrous', this.nextLudi)
-      this.nextLudi += 1550 + this.rng() * 250
+    while (this.nextOverdrive < horizon) {
+      this.dropPower('overdrive', this.nextOverdrive)
+      this.nextOverdrive += 1550 + this.rng() * 250
     }
   }
 
@@ -951,8 +951,8 @@ export class Simulation {
       if (!item.active) continue
       item.mesh.position.set(item.x, item.y + Math.sin(t * 2.4 + item.phase) * 0.12, item.z)
       item.mesh.rotation.y += realDt * 1.4
-      if (item.kind === 'ludicrous') {
-        const mat = (item.show.ludicrous as THREE.Mesh).material as THREE.MeshBasicMaterial
+      if (item.kind === 'overdrive') {
+        const mat = (item.show.overdrive as THREE.Mesh).material as THREE.MeshBasicMaterial
         const pulse = 0.5 + Math.sin(t * 8) * 0.5
         mat.color.setRGB(1.2 + pulse, 0.2, 1.1 + (1 - pulse) * 0.6)
       }
