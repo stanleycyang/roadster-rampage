@@ -8,7 +8,7 @@ import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { AudioEngine } from './audio.ts'
 import { Roadster } from './car.ts'
-import { COMBO_MAX, COMBO_TIME, MUTE_KEY, QUALITY_KEY, SAVE_KEY } from './config.ts'
+import { COMBO_MAX, COMBO_TIME, MUTE_KEY, QUALITY_KEY, SAVE_KEY, SKIN_KEY } from './config.ts'
 import { Effects } from './fx.ts'
 import { Input } from './input.ts'
 import { SpeedShader } from './shaders.ts'
@@ -81,6 +81,9 @@ export class Game {
   private readonly debug: boolean
   private readonly autostart: boolean
   private readonly beauty: boolean
+  private readonly shot: 'front' | 'side' | 'rear' | null
+  private signal = false
+  private accentOn = false
   private readonly frame = (now: number) => {
     const dt = Math.min(0.05, (now - this.last) / 1000)
     this.last = now
@@ -99,7 +102,7 @@ export class Game {
     }
     this.sim = new Simulation(this.player)
     this.sim.attach(this.world.scene)
-    this.world.scene.add(this.car.root, this.car.shadow, this.fx.points, this.fx.rain, this.fx.shock)
+    this.world.scene.add(this.car.root, this.car.shadow, this.fx.points, this.fx.smoke, this.fx.rain, this.fx.shock)
     this.best = loadSave()
     this.audio = new AudioEngine(loadMute())
     this.ui = new UI({
@@ -110,6 +113,7 @@ export class Game {
       mute: () => this.toggleMute(),
       pause: () => this.togglePause(),
       quality: () => this.toggleQuality(),
+      skin: () => this.toggleSkin(),
     })
     this.ui.setMuted(this.audio.muted)
     this.ui.setBest(this.best)
@@ -135,8 +139,14 @@ export class Game {
     const params = new URLSearchParams(location.search)
     this.debug = params.has('debug')
     this.autostart = params.has('autostart')
-    this.beauty = params.has('beauty')
+    const shot = params.get('shot')
+    this.shot = shot === 'front' || shot === 'side' || shot === 'rear' ? shot : params.has('beauty') ? 'front' : null
+    this.beauty = this.shot !== null
     if (this.beauty) document.body.classList.add('beauty')
+    this.signal = loadFlag(SKIN_KEY) || this.best.score > 0
+    this.accentOn = this.shot === 'front'
+    this.car.setLivery(this.accentOn)
+    this.ui.setSkin(this.signal, this.accentOn)
     window.addEventListener('resize', this.onResize)
     window.addEventListener('pointerdown', () => this.audio.unlock())
     document.addEventListener('visibilitychange', () => {
@@ -204,12 +214,14 @@ export class Game {
     }
     if (this.beauty) {
       this.player.x = 0
-      this.player.z = 4
+      this.player.z = 8
       this.player.vx = 0
       this.player.vy = 0
-      this.player.speed = 0
-      this.player.y = 0
-      this.player.onGround = true
+      this.player.speed = this.shot === 'rear' ? 32 : 0
+      this.player.y = this.shot === 'rear' ? 0.22 : 0
+      this.player.onGround = this.shot !== 'rear'
+      this.player.boosting = this.shot === 'rear'
+      this.car.setDoors(this.shot === 'side' ? 1 : 0)
     }
     this.lastZ = this.player.z
     this.placeCar(dt)
@@ -444,6 +456,11 @@ export class Game {
       saveSave(this.best)
       this.ui.setBest(this.best)
     }
+    if (!this.signal) {
+      this.signal = true
+      try { localStorage.setItem(SKIN_KEY, '1') } catch { /* ignore */ }
+      this.ui.setSkin(true, this.accentOn)
+    }
     let flavor = FLAVOR[Math.floor(Math.random() * FLAVOR.length)]!
     if (this.sim.policeT > 0) flavor = 'The chase ends under neon.'
     else if (this.sim.rainT > 0) flavor = 'The storm collects.'
@@ -546,7 +563,7 @@ export class Game {
     const rate = p.boosting ? 1 : dt > 0.02 ? 1 : Math.random() < 0.7 ? 1 : 0
     if (!rate) return
     this.car.exhaustDir(this.exhaustDir)
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < this.car.nozzleCount; i++) {
       this.car.nozzleWorld(i, this.nozzle)
       this.fx.exhaust(
         this.nozzle.x, this.nozzle.y, this.nozzle.z,
@@ -582,9 +599,19 @@ export class Game {
     if (this.beauty) {
       const cam = this.world.camera
       cam.up.set(0, 1, 0)
-      cam.position.set(p.x + 4.5, 1.22, p.z - 2.4)
-      cam.lookAt(p.x + 0.05, 0.5, p.z + 0.25)
-      cam.fov = 30
+      if (this.shot === 'side') {
+        cam.position.set(p.x - 5.1, 0.82, p.z + 0.2)
+        cam.lookAt(p.x + 0.1, 0.46, p.z)
+        cam.fov = 26
+      } else if (this.shot === 'rear') {
+        cam.position.set(p.x + 0.15, 1.05, p.z - 4.6)
+        cam.lookAt(p.x, 0.48, p.z - 0.2)
+        cam.fov = 30
+      } else {
+        cam.position.set(p.x + 3.2, 0.95, p.z + 3.5)
+        cam.lookAt(p.x + 0.05, 0.42, p.z + 0.1)
+        cam.fov = 30
+      }
       cam.updateProjectionMatrix()
       return
     }
@@ -625,8 +652,8 @@ export class Game {
     const night = 1 - clamp((Math.cos(((this.player.z % 11000) / 11000) * Math.PI * 2) * 0.5 + 0.5), 0, 1)
     const ludi = this.player.ludicrous > 0 ? 1 : 0
     this.bokeh.enabled = this.high && !this.beauty
-    this.bloom.strength = 0.1 + night * 0.04 + ludi * 0.16 + (this.sim.inTunnel ? 0.04 : 0)
-    this.bloom.threshold = ludi ? 1.1 : 2.6
+    this.bloom.strength = (this.beauty ? 0.08 : 0.12) + ludi * 0.14
+    this.bloom.threshold = ludi ? 1.2 : 1.7
     this.bloom.radius = 0.35 + ludi * 0.08
     const u = this.speedPass.uniforms
     const set = (name: string, value: number) => {
@@ -686,6 +713,16 @@ export class Game {
     }
     this.qualityChecked = true
     console.info(`Roadster Rampage ${fps.toFixed(0)} fps`)
+  }
+
+  private toggleSkin(): void {
+    if (!this.signal) {
+      this.ui.toast('FINISH A RUN TO UNLOCK SIGNAL', 'warn')
+      return
+    }
+    this.accentOn = !this.accentOn
+    this.car.setLivery(this.accentOn)
+    this.ui.setSkin(true, this.accentOn)
   }
 
   private toggleQuality(): void {
@@ -761,6 +798,10 @@ function saveSave(data: SaveData): void {
 
 function loadMute(): boolean {
   try { return localStorage.getItem(MUTE_KEY) === '1' } catch { return false }
+}
+
+function loadFlag(key: string): boolean {
+  try { return localStorage.getItem(key) === '1' } catch { return false }
 }
 
 function loadQuality(): 'high' | 'medium' | null {

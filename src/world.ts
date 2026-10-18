@@ -216,6 +216,9 @@ export class World {
   private high = true
   private readonly buildings: Building[] = []
   private readonly lamps: THREE.Group[] = []
+  private readonly strips: THREE.Mesh[] = []
+  private readonly rim: THREE.DirectionalLight
+  private readonly pool: THREE.SpotLight
   private readonly horizon = new THREE.Color()
   private rainMix = 0
   private tunnelMix = 0
@@ -259,6 +262,12 @@ export class World {
     this.dir.shadow.normalBias = 0.035
     this.dir.shadow.radius = 2
     this.scene.add(this.hemi, this.dir, this.dir.target)
+    this.rim = new THREE.DirectionalLight(0xfff4ea, 0.85)
+    this.rim.position.set(-8, 4, -6)
+    this.pool = new THREE.SpotLight(0xfff7ef, 2.4, 16, 0.5, 0.6, 1.6)
+    this.pool.position.set(0, 9, 3)
+    this.pool.target.position.set(0, 0, 0)
+    this.scene.add(this.rim, this.rim.target, this.pool, this.pool.target)
 
     this.catcher = new THREE.Mesh(
       new THREE.PlaneGeometry(64, 80),
@@ -408,6 +417,19 @@ export class World {
       this.lamps.push(g)
     }
 
+    const stripMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color().setRGB(2.4, 0.05, 0.07),
+      toneMapped: false,
+      fog: true,
+    })
+    for (let i = 0; i < 16; i++) {
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 8, 0.07), stripMat)
+      const side = i % 2 === 0 ? -1 : 1
+      strip.position.set(side * (ROAD_HALF + 3.2), 4, Math.floor(i / 2) * 26)
+      this.scene.add(strip)
+      this.strips.push(strip)
+    }
+
     this.scene.add(this.rocket.group)
   }
 
@@ -477,13 +499,22 @@ export class World {
     this.shaft.quaternion.setFromUnitVectors(this.up, sunDir)
     const shaftMat = this.shaft.material as THREE.MeshBasicMaterial
     shaftMat.opacity = (this.high ? 0.055 : 0.028) * (0.35 + day * 0.75) * (1 - this.tunnelMix)
-    this.renderer.toneMappingExposure = 0.92 + night * 0.1 + lightning * 0.22
+    this.renderer.toneMappingExposure = 0.8 + night * 0.08 + lightning * 0.2
+    this.rim.position.set(player.x - 7, 3.4, player.z - 5)
+    this.rim.target.position.set(player.x, 0.5, player.z + 1)
+    this.rim.target.updateMatrixWorld()
+    this.pool.position.set(player.x, 8.5, player.z + 1.5)
+    this.pool.target.position.set(player.x, 0, player.z + 1.2)
+    this.pool.target.updateMatrixWorld()
 
     for (const b of this.buildings) {
       if (b.mesh.position.z < player.z - 40) b.mesh.position.z += 462
     }
     for (const lamp of this.lamps) {
       if (lamp.position.z < player.z - 30) lamp.position.z += 24 * 18
+    }
+    for (const strip of this.strips) {
+      if (strip.position.z < player.z - 40) strip.position.z += 26 * 8
     }
     this.rocket.update(dt)
   }

@@ -1,7 +1,24 @@
 import * as THREE from 'three'
 
+function puffTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas')
+  c.width = 64
+  c.height = 64
+  const g = c.getContext('2d')!
+  const grd = g.createRadialGradient(32, 32, 4, 32, 32, 30)
+  grd.addColorStop(0, 'rgba(255,255,255,0.85)')
+  grd.addColorStop(0.45, 'rgba(230,232,236,0.35)')
+  grd.addColorStop(1, 'rgba(255,255,255,0)')
+  g.fillStyle = grd
+  g.fillRect(0, 0, 64, 64)
+  const tex = new THREE.CanvasTexture(c)
+  tex.needsUpdate = true
+  return tex
+}
+
 export class Effects {
   readonly points: THREE.Points
+  readonly smoke: THREE.Points
   readonly rain: THREE.Points
   readonly shock: THREE.Mesh
   private readonly count = 360
@@ -12,6 +29,12 @@ export class Effects {
   private readonly col: Float32Array
   private readonly base: Float32Array
   private cursor = 0
+  private readonly smokeCount = 220
+  private readonly smokePos: Float32Array
+  private readonly smokeVel: Float32Array
+  private readonly smokeLife: Float32Array
+  private readonly smokeMax: Float32Array
+  private smokeCursor = 0
   private readonly rainCount = 380
   private readonly rainPos: Float32Array
   private shockT = 1
@@ -39,6 +62,25 @@ export class Effects {
       fog: false,
     }))
     this.points.frustumCulled = false
+
+    this.smokePos = new Float32Array(this.smokeCount * 3)
+    this.smokeVel = new Float32Array(this.smokeCount * 3)
+    this.smokeLife = new Float32Array(this.smokeCount)
+    this.smokeMax = new Float32Array(this.smokeCount)
+    for (let i = 0; i < this.smokeCount; i++) this.smokePos[i * 3 + 1] = -999
+    const smokeGeo = new THREE.BufferGeometry()
+    smokeGeo.setAttribute('position', new THREE.BufferAttribute(this.smokePos, 3))
+    this.smoke = new THREE.Points(smokeGeo, new THREE.PointsMaterial({
+      map: puffTexture(),
+      color: 0xd8dbe2,
+      size: 0.85,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      sizeAttenuation: true,
+      fog: false,
+    }))
+    this.smoke.frustumCulled = false
 
     this.rainPos = new Float32Array(this.rainCount * 3)
     const rainCol = new Float32Array(this.rainCount * 3)
@@ -112,8 +154,24 @@ export class Effects {
 
   exhaust(x: number, y: number, z: number, dx: number, dy: number, dz: number, hot: boolean): void {
     const j = (s: number) => (Math.random() - 0.5) * s
-    if (hot) this.spawn(x, y, z, dx + j(1.5), dy + Math.random(), dz + j(1.5), 0.4, 1.6, 1.9, 0.26 + Math.random() * 0.16)
-    else this.spawn(x, y, z, dx + j(0.7), dy + 0.35, dz + j(0.7), 0.85, 0.45, 0.28, 0.2 + Math.random() * 0.1)
+    if (hot) {
+      this.spawn(x, y, z, dx + j(0.8), dy + j(0.4), dz + j(0.8), 1.5, 1.55, 1.6, 0.18 + Math.random() * 0.1)
+      this.puff(x, y, z, dx * 0.35 + j(1.2), dy * 0.4 - Math.random() * 0.6, dz * 0.35 + j(1.2), 0.55 + Math.random() * 0.35)
+      this.puff(x, 0.08, z, j(2.4), 0.15, j(1.2) + dz * 0.15, 0.7)
+    } else this.spawn(x, y, z, dx + j(0.4), dy + 0.2, dz + j(0.4), 0.7, 0.72, 0.75, 0.16)
+  }
+
+  private puff(x: number, y: number, z: number, vx: number, vy: number, vz: number, life: number): void {
+    const i = this.smokeCursor
+    this.smokeCursor = (this.smokeCursor + 1) % this.smokeCount
+    this.smokePos[i * 3] = x
+    this.smokePos[i * 3 + 1] = y
+    this.smokePos[i * 3 + 2] = z
+    this.smokeVel[i * 3] = vx
+    this.smokeVel[i * 3 + 1] = vy
+    this.smokeVel[i * 3 + 2] = vz
+    this.smokeLife[i] = life
+    this.smokeMax[i] = life
   }
 
   shockwave(x: number, z: number): void {
@@ -146,6 +204,27 @@ export class Effects {
     const colAttr = this.points.geometry.getAttribute('color') as THREE.BufferAttribute
     posAttr.needsUpdate = true
     colAttr.needsUpdate = true
+
+    for (let i = 0; i < this.smokeCount; i++) {
+      if (this.smokeLife[i]! <= 0) continue
+      this.smokeLife[i] = this.smokeLife[i]! - dt
+      if (this.smokeLife[i]! <= 0) {
+        this.smokePos[i * 3 + 1] = -999
+        continue
+      }
+      this.smokeVel[i * 3 + 1] = this.smokeVel[i * 3 + 1]! - 4 * dt
+      this.smokePos[i * 3] = this.smokePos[i * 3]! + this.smokeVel[i * 3]! * dt
+      this.smokePos[i * 3 + 1] = this.smokePos[i * 3 + 1]! + this.smokeVel[i * 3 + 1]! * dt
+      this.smokePos[i * 3 + 2] = this.smokePos[i * 3 + 2]! + this.smokeVel[i * 3 + 2]! * dt
+      if (this.smokePos[i * 3 + 1]! < 0.06) {
+        this.smokePos[i * 3 + 1] = 0.06
+        this.smokeVel[i * 3 + 1] = 0.2
+        this.smokeVel[i * 3] = this.smokeVel[i * 3]! * 1.4
+        this.smokeVel[i * 3 + 2] = this.smokeVel[i * 3 + 2]! * 0.6
+      }
+    }
+    const smokeAttr = this.smoke.geometry.getAttribute('position') as THREE.BufferAttribute
+    smokeAttr.needsUpdate = true
 
     this.rain.visible = raining
     if (raining) {

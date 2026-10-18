@@ -60,7 +60,7 @@ export class UI {
   private lastCombo = 1
   private shownScore = 0
 
-  constructor(handlers: { start: () => void; restart: () => void; resume: () => void; menu: () => void; mute: () => void; pause: () => void; quality: () => void }) {
+  constructor(handlers: { start: () => void; restart: () => void; resume: () => void; menu: () => void; mute: () => void; pause: () => void; quality: () => void; skin: () => void }) {
     const rctx = this.radar.getContext('2d')
     if (!rctx) throw new Error('Radar unavailable')
     this.ctx = rctx
@@ -71,6 +71,7 @@ export class UI {
     this.must('pauseBtn').addEventListener('click', handlers.pause)
     this.muteBtn.addEventListener('click', handlers.mute)
     this.must('qualityBtn').addEventListener('click', handlers.quality)
+    this.must('skinBtn').addEventListener('click', handlers.skin)
     const touch = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 || window.innerWidth < 780
     if (touch) document.body.classList.add('touch')
   }
@@ -90,6 +91,12 @@ export class UI {
   setMuted(muted: boolean): void {
     this.muteBtn.textContent = muted ? 'Muted' : 'Sound'
     this.muteBtn.classList.toggle('is-muted', muted)
+  }
+
+  setSkin(unlocked: boolean, signal: boolean): void {
+    const btn = this.must('skinBtn')
+    btn.textContent = !unlocked ? 'Signal locked' : signal ? 'Signal red' : 'Pearl white'
+    btn.classList.toggle('is-locked', !unlocked)
   }
 
   setQuality(high: boolean): void {
