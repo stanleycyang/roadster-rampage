@@ -51,3 +51,28 @@ test('incomplete, mixed, read-only and disabled configurations never contact sto
     assert.equal(calls, 0)
   }
 })
+
+test('tickets cannot cross datastore prefixes even when the signing secret is shared', async () => {
+  const submissions: string[] = []
+  const request: typeof fetch = async (_url, init) => {
+    const command = JSON.parse(init!.body as string)
+    // Rate gates use two keys too; submissions carry the :top key.
+    if (command[0] === 'EVAL' && String(command[3]).endsWith(':top')) submissions.push(command[3])
+    return Response.json({ result: 1 })
+  }
+  const preview = configuredHandler({ ...activation, ...kv, LEADERBOARD_PREFIX: 'test:preview' }, request)
+  const production = configuredHandler({ ...activation, ...kv, LEADERBOARD_PREFIX: 'test:production' }, request)
+  const send = (handler: ReturnType<typeof configuredHandler>, body: object) => handler(new Request('https://game.example/api/leaderboard', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  }))
+  const start = { action: 'start', ruleset: 'roadster-v1', debug: false, screenshot: false }
+  for (const [source, other, prefix] of [[preview, production, 'test:preview'], [production, preview, 'test:production']] as const) {
+    const { ticket } = await (await send(source, start)).json()
+    const body = { ...start, action: 'submit', ticket, runId: ticket.split('.')[0], score: 1, distance: 0, durationMs: 1 }
+    const before = submissions.length
+    assert.equal((await send(other, body)).status, 400)
+    assert.equal(submissions.length, before)
+    assert.equal((await send(source, body)).status, 200)
+    assert.equal(submissions.at(-1), `${prefix}:top`)
+  }
+})
