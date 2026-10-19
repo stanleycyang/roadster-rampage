@@ -22,6 +22,10 @@ export class Input {
   constructor() {
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
+    window.addEventListener('blur', () => this.reset())
+    document.addEventListener('focusin', e => {
+      if (e.target instanceof Element && e.target.closest('button, a, input, select, textarea, [contenteditable], [data-ui]')) this.reset()
+    })
     this.bindButton('btnLeft', 'left')
     this.bindButton('btnRight', 'right')
     this.bindButton('btnGas', 'gas')
@@ -46,6 +50,11 @@ export class Input {
 
   get jumpHeld(): boolean {
     return this.held.jump
+  }
+
+  reset(): void {
+    for (const key of Object.keys(this.held) as (keyof Held)[]) this.held[key] = false
+    this.consume()
   }
 
   consume(): void {
@@ -94,7 +103,7 @@ export class Input {
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
-    if (e.repeat) return
+    if (e.repeat || e.defaultPrevented || (e.target instanceof Element && e.target.closest('button, a, input, select, textarea, [contenteditable], [data-ui]'))) return
     const block = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
     if (block.includes(e.code)) e.preventDefault()
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.press('left', true)

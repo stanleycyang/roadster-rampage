@@ -10,6 +10,7 @@ import { AudioEngine } from './audio.ts'
 import { Roadster } from './car.ts'
 import { COMBO_MAX, COMBO_TIME, MUTE_KEY, QUALITY_KEY, SAVE_KEY, SKIN_KEY } from './config.ts'
 import { Effects } from './fx.ts'
+import { CurrentRun, Leaderboard } from './leaderboard.ts'
 import { Input } from './input.ts'
 import { SpeedShader } from './shaders.ts'
 import { Simulation } from './sim.ts'
@@ -53,6 +54,9 @@ export class Game {
   private mode: Mode = 'title'
   private time = 0
   private score = 0
+  private readonly leaderboard = new Leaderboard()
+  private currentRun: CurrentRun | null = null
+  private runDurationMs = 0
   private combo = 1
   private comboTimer = 0
   private bestCombo = 1
@@ -199,6 +203,7 @@ export class Game {
     const events = this.sim.update(worldDt, dt, input, !playing)
     this.handleEvents(events)
     if (playing) {
+      this.runDurationMs += dt * 1000
       const dz = this.player.z - this.lastZ
       if (dz > 0) this.score += dz * (5 + this.combo * 1.5) * (overdrive ? 2 : 1)
       this.topSpeed = Math.max(this.topSpeed, this.player.speed)
@@ -450,6 +455,8 @@ export class Game {
     this.finished = true
     this.mode = 'score'
     this.ui.setMode('score')
+    this.currentRun?.finish(this.score, this.player.z, this.runDurationMs)
+    this.leaderboard.show(document.getElementById('scoreLeaderboard')!, this.currentRun)
     const isRecord = this.score > this.best.score
     if (isRecord) {
       this.best = { score: Math.floor(this.score), distance: this.player.z, combo: this.bestCombo }
@@ -483,6 +490,11 @@ export class Game {
   private startRun(): void {
     if (this.mode === 'playing') return
     this.audio.unlock()
+    this.leaderboard.hide()
+    this.currentRun = new CurrentRun(!this.debug && !this.beauty && !new URLSearchParams(location.search).has('shot'))
+    this.runDurationMs = 0
+    this.input.reset()
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     this.sim.reset()
     this.finished = false
     this.mode = 'playing'
@@ -507,6 +519,8 @@ export class Game {
   }
 
   private backToTitle(): void {
+    this.currentRun = null
+    this.leaderboard.show(document.getElementById('titleLeaderboard')!, null)
     this.sim.reset()
     this.finished = false
     this.mode = 'title'
@@ -753,6 +767,7 @@ export class Game {
   }
 
   private readonly onDebug = (e: KeyboardEvent): void => {
+    if (e.target instanceof Element && e.target.closest('button, a, input, select, textarea, [contenteditable], [data-ui]')) return
     if (e.code === 'KeyL') this.player.overdrive = 6.5
     if (e.code === 'KeyG') this.player.shield = true
     if (e.code === 'KeyB') this.player.boost = 100
