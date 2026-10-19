@@ -35,8 +35,9 @@ export class Input {
 
   steer(): number {
     let s = 0
-    if (this.held.left) s -= 1
-    if (this.held.right) s += 1
+    // The chase camera faces +Z, so +X appears on the screen's left.
+    if (this.held.left) s += 1
+    if (this.held.right) s -= 1
     return clamp(s, -1, 1)
   }
 
