@@ -1,6 +1,6 @@
 import { isTaggedName, PLAYER_ID_PATTERN } from './player.ts'
 export const RULESET = 'roadster-v1'
-export const LIMIT = 100
+export const LIMIT = 20
 export const TICKET_MS = 6 * 60 * 60 * 1000
 export const COLORS = ['Amber', 'Azure', 'Coral', 'Golden', 'Mint', 'Silver'] as const
 export const ANIMALS = ['Badger', 'Falcon', 'Otter', 'Panda', 'Robin', 'Turtle'] as const

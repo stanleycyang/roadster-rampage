@@ -58,7 +58,7 @@ export class Leaderboard {
     this.root.dataset.ui = 'true'
     this.root.setAttribute('aria-label', 'Global leaderboard')
     const heading = document.createElement('h3')
-    heading.textContent = 'Global top 100'
+    heading.textContent = `Global top ${LIMIT}`
     this.intro.textContent = 'Casual, unverified scores · Family-friendly aliases assigned by the server.'
     this.status.setAttribute('role', 'status')
     this.notice.setAttribute('role', 'status')
@@ -151,7 +151,7 @@ export class Leaderboard {
       if (!isEntry(data.entry)) throw new Error('Submission response unavailable. Retry safely.')
       this.sent.add(run.id)
       this.submit.textContent = 'Submitted'
-      this.notice.textContent = `Submitted as ${data.entry.alias}. Only the top 100 runs appear.`
+      this.notice.textContent = `Submitted as ${data.entry.alias}. Only the top ${LIMIT} runs appear.`
       void this.load()
     } catch (error) {
       if (generation === this.generation) this.notice.textContent = error instanceof Error ? error.message : 'Submission unavailable. Try again.'

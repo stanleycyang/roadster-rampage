@@ -54,7 +54,7 @@ test('concurrent duplicate submissions are idempotent, ranked and trimmed with s
   const runs = await Promise.all(Array.from({ length: 105 }, () => s.run()))
   await Promise.all(runs.map((r, i) => s.send({ ...r, score: 1000 + i % 2 })))
   const entries = (await (await s.send()).json()).entries
-  assert.equal(entries.length, 100)
+  assert.equal(entries.length, 20)
   for (let i = 1; i < entries.length; i++) assert.ok(entries[i - 1].score > entries[i].score || entries[i - 1].runId > entries[i].runId)
   assert.ok(!entries.some((e: {runId: string}) => e.runId === run.runId))
   assert.equal((await (await s.send({ ...run, score: 999999 })).json()).duplicate, true)
@@ -107,7 +107,7 @@ test('REST adapter sends atomic Lua and bounded reads; rejects storage failures'
   assert.deepEqual(await store.list(), [entry])
   assert.equal(calls[0]![1], GATE)
   assert.equal(calls[1]![1], SUBMIT)
-  assert.deepEqual(calls[2], ['ZREVRANGE', 'test:v1:top', 0, 99])
+  assert.deepEqual(calls[2], ['ZREVRANGE', 'test:v1:top', 0, 19])
   await assert.rejects(new RedisStore('https://mock.invalid', 'x', 'test', async () => Response.json({ error: 'nope' })).list())
   await assert.rejects(new RedisStore('https://mock.invalid', 'x', 'test', async () => new Response('', { status: 503 })).list())
 })
