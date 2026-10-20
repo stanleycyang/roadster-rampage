@@ -1,5 +1,9 @@
 import './style.css'
 import { Game } from './game.ts'
+import { inject } from '@vercel/analytics'
+
+// Initialize Vercel Web Analytics
+inject()
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')
 if (!canvas) throw new Error('Missing canvas')
