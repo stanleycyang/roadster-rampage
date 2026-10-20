@@ -96,3 +96,21 @@ test('name mode requires a separate identity secret and player API remains disab
   assert.equal(player.status, 200)
   assert.deepEqual(await player.json(), { profile: null })
 })
+
+test('disabled name mode never resolves saved name profiles from Redis', async () => {
+  const calls: string[] = []
+  const entry = { runId: '11111111-1111-4111-8111-111111111111', alias: 'SavedName#1001', playerId: 'a'.repeat(64), score: 10, distance: 1 }
+  const request: typeof fetch = async (_url, init) => {
+    const command = JSON.parse(init!.body as string)
+    calls.push(command[0])
+    if (command[0] === 'EVAL') return Response.json({ result: 1 })
+    if (command[0] === 'ZREVRANGE') return Response.json({ result: [`${entry.runId}|${JSON.stringify(entry)}`] })
+    throw new Error('Unexpected profile resolution')
+  }
+  const response = await configuredHandler({ ...activation, ...kv, PLAYER_NAMES_ENABLED: 'false' }, request)(new Request('https://game.example/api/leaderboard'))
+  assert.equal(response.status, 200)
+  const body = await response.text()
+  assert.ok(!body.includes('SavedName'))
+  assert.ok(!body.includes(entry.playerId))
+  assert.deepEqual(calls, ['EVAL', 'ZREVRANGE'])
+})

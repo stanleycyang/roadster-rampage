@@ -5,7 +5,9 @@ export const RENAME_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000
 export const REPORT_REASONS = ['profanity', 'hate', 'impersonation', 'other'] as const
 export type ReportReason = typeof REPORT_REASONS[number]
 export interface PlayerProfile { username: string | null; tag: string; changedAt: number; needsRename: boolean }
-export interface NameReport { playerId: string; username: string; tag: string; reason: ReportReason; createdAt: number }
+export interface ModerationTarget { playerId: string; username: string; tag: string; nameChangedAt: number }
+export type ModerationResult = 'moderated' | 'stale' | 'missing'
+export interface NameReport extends ModerationTarget { reason: ReportReason; createdAt: number }
 export type ClaimResult = 'claimed' | 'blocked' | 'cooldown' | 'full'
 export function isUsername(value: unknown): value is string {
   return typeof value === 'string' && USERNAME_PATTERN.test(value)

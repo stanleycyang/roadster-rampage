@@ -103,6 +103,7 @@ export class Leaderboard {
       if (generation !== this.generation || controller.signal.aborted) return
       if (data.ruleset !== RULESET || !Array.isArray(data.entries) || data.entries.length > LIMIT || !data.entries.every(isEntry)) throw new Error('Invalid leaderboard response. Please try again later.')
       this.namesEnabled = data.usernamesEnabled === true
+      if (!this.namesEnabled && this.names.active) this.names.hide()
       this.intro.textContent = this.namesEnabled ? 'Casual, unverified scores · Choose a name. Your unique #tag is assigned by the server.' : 'Casual, unverified scores · Family-friendly aliases assigned by the server.'
       const entries = data.entries as Entry[]
       this.list.replaceChildren(...entries.map(entry => {
@@ -123,7 +124,7 @@ export class Leaderboard {
         }
         return row
       }))
-      if (this.namesEnabled && this.run?.eligible && !this.names.active) await this.names.show(controller.signal)
+      if (this.namesEnabled && this.run?.eligible && (!this.names.active || this.names.needsLoad)) await this.names.show(controller.signal)
       if (generation !== this.generation || controller.signal.aborted) return
       this.submit.disabled = this.sending || Boolean(this.run && this.sent.has(this.run.id))
       this.status.textContent = entries.length ? 'Highest scores first. Equal scores use a fixed run-ID order.' : 'No runs yet. Finish a run to be the first!'

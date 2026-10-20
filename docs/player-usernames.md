@@ -18,11 +18,11 @@ Atomic Redis claims allocate monotonic tags (starting at 1001), shared across al
 
 One current display name is stored per anonymous identity. Ordinary changes have a 30-day cooldown, and saving the same spelling is idempotent. There is no exclusivity or reservation of ordinary display names. Public player IDs are domain-separated HMACs of private browser credentials, scoped by the stable player secret and leaderboard prefix. Redis stores no browser credentials, emails or provider IDs. The public ID cannot be used as the private cookie.
 
-`/api/player` supports profile reads, name claims and reports. Reports require a saved anonymous identity and cannot target oneself. They deduplicate by reporter/target/name version, retain at most 30 days of actionable reports and return at most 100 for review. Expired queue data is physically pruned when a report is written. IP and identity limits share the existing bounded leaderboard admission gate; each identity request may consume two admissions. Creating more anonymous identities can bypass identity-level limits, so IP/global limits, the profile ceiling and provider budgets still matter. These controls do not promise a hard hosting spend cap under a flood.
+`/api/player` supports profile reads, name claims and reports. Reports require a saved anonymous identity and cannot target oneself. They deduplicate by reporter/target/name version, retain at most 30 days of actionable reports and return at most 100 for review. Queue reads scan in bounded pages, pruning expired, moderated or changed-name records before applying the 100-actionable-report limit. Expired queue data is also pruned when a report is written. IP and identity limits share the existing bounded leaderboard admission gate; each identity request may consume two admissions. Creating more anonymous identities can bypass identity-level limits, so IP/global limits, the profile ceiling and provider budgets still matter. These controls do not promise a hard hosting spend cap under a flood.
 
-Moderator review and forced rename require a separate server-side bearer secret. Browser cookies, public IDs, names or request-body role fields never grant moderator access. Forced rename immediately hides the rejected name on every existing leaderboard row using that base name and blocks future claims case-insensitively. Affected players may choose a replacement without the normal cooldown, retaining their tag. Reports never automatically ban a player.
+Moderator review and forced rename require a separate server-side bearer secret. Verified moderator requests have a separate Redis quota of 120 operations per hour and bypass all public IP/global/daily quotas, so exhausting player allowances does not lock out moderation. Browser cookies, public IDs, names or request-body role fields never grant moderator access. Forced rename immediately hides the rejected name on every existing leaderboard row using that base name and blocks future claims case-insensitively. Affected players may choose a replacement without the normal cooldown, retaining their tag. Reports never automatically ban a player.
 
-Existing curated random-alias rows remain compatible. Tagged rows resolve their current name on reads, rather than trusting historical name snapshots. Lua submission rechecks profile and moderation state atomically. Scores remain casual and browser-reported.
+When name mode is disabled, existing tagged rows are rendered using curated aliases and public player IDs are omitted; the server skips profile resolution and the UI hides its name form and reporting controls. Existing curated random-alias rows remain compatible. Tagged rows resolve their current name on reads, rather than trusting historical name snapshots. Lua submission rechecks profile and moderation state atomically. Scores remain casual and browser-reported.
 
 ## Configuration and rollout
 
@@ -38,8 +38,10 @@ To review reports locally, set `PLAYER_MODERATION_URL` to the exact HTTPS `/api/
 
 ```sh
 node scripts/moderate-names.ts reports
-node scripts/moderate-names.ts moderate <public-player-id>
+node scripts/moderate-names.ts moderate reviewed-report.json
 ```
+
+Save one complete report object from the `reports` response to `reviewed-report.json` after reviewing it. The command sends its player ID, username, tag and `nameChangedAt` version. Redis checks that exact name version atomically; if the player has since renamed, moderation returns HTTP 409 without changing or blocking the new name. Refresh the queue and review again rather than editing the saved version.
 
 The script rejects non-HTTPS endpoints and redirects, accepts no secret argument and never prints the moderation secret. Reports contain the reported public names and tags, so treat their output as moderation material. Review a report before forcing a rename.
 
@@ -51,6 +53,6 @@ REDIS_SERVER=/path/to/redis-server REDIS_CLI=/path/to/redis-cli npm test
 npm run build
 ```
 
-Tests use disposable local Redis with TCP and persistence disabled to verify concurrent duplicate names/unique tags, stable tags across renames, cooldowns, report deduplication, moderation, idempotent score writes and name removal. Handler tests verify private-cookie issuance, anonymous submissions, forged fields, public-ID impersonation attempts, origin checks, moderator authorization and fail-closed configuration. Both emitted API module graphs are compiled and loaded in the runtime regression test. Without Redis binaries, the two integration tests explicitly skip.
+Tests use disposable local Redis with TCP and persistence disabled to verify concurrent duplicate names/unique tags, stable tags across renames, cooldowns, report deduplication, moderation, idempotent score writes and name removal. Handler tests verify private-cookie issuance, anonymous submissions, forged fields, public-ID impersonation attempts, origin checks, moderator authorization and fail-closed configuration. Regression coverage includes more than 100 obsolete reports ahead of actionable records, moderation after a rename (including changing back to the same spelling), independent moderator admission under exhausted public quotas, feature-off name redaction, explicit unchanged-name saves and profile-load retries. Both emitted API module graphs are compiled and loaded in the runtime regression test. Without Redis binaries, the two integration tests explicitly skip.
 
 References: [secure cookies](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie), [Obscenity](https://github.com/jo3-l/obscenity).

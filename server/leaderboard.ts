@@ -30,7 +30,9 @@ export function createHandler(store: Store | null, secret: string, now = Date.no
       const client = sign(`ip:${Math.floor(time / 3600000)}:${ip}`).slice(0, 32)
       if (!await store.allow(client, req.method === 'POST', time)) return reply(429, { error: 'rate_limit' })
       if (req.method === 'GET') {
-        const entries = await store.list()
+        const entries = (await store.list(Boolean(players))).map(entry => !players && entry.playerId ? {
+          runId: entry.runId, alias: aliasFor(entry.runId, secret), score: entry.score, distance: entry.distance,
+        } : entry)
         if (!entries.every(isEntry)) throw new Error('Invalid stored data')
         return reply(200, { entries, ruleset: RULESET, usernamesEnabled: Boolean(players) })
       }

@@ -31,6 +31,7 @@ export class PlayerNameForm {
   private readonly status = document.createElement('p')
   private readonly save = document.createElement('button')
   private profile: PlayerProfile | null = null
+  private loaded = false
   private generation = 0
   private controller: AbortController | null = null
   private pending: Promise<void> | null = null
@@ -59,28 +60,34 @@ export class PlayerNameForm {
     this.root.append(label, help, this.save, this.status)
     this.root.addEventListener('submit', event => {
       event.preventDefault()
-      void this.ensure().catch(error => { if (!this.root.hidden) this.status.textContent = error instanceof Error ? error.message : 'Could not save your name.' })
+      const generation = this.generation
+      void this.ensure(true).catch(error => { if (generation === this.generation && !this.root.hidden) this.status.textContent = error instanceof Error ? error.message : 'Could not save your name.' })
     })
   }
   get active(): boolean { return !this.root.hidden }
+  get needsLoad(): boolean { return !this.loaded }
   async show(signal: AbortSignal): Promise<void> {
     const generation = this.generation
     this.root.hidden = false
-    this.controller = new AbortController()
+    this.controller?.abort()
+    const controller = this.controller = new AbortController()
+    const aborted = () => generation !== this.generation || controller.signal.aborted || signal.aborted
+    this.loaded = false
     this.save.disabled = true
     this.input.disabled = true
     this.status.textContent = 'Loading your name…'
     try {
-      const data = await this.request(undefined, AbortSignal.any([signal, this.controller.signal]))
-      if (generation !== this.generation) return
+      const data = await this.request(undefined, AbortSignal.any([signal, controller.signal]))
+      if (aborted()) return
       if (data.profile !== null && !isProfile(data.profile)) throw new Error('Could not load your name. Please try again.')
       this.profile = data.profile as PlayerProfile | null
+      this.loaded = true
       this.input.value = this.profile?.username ?? ''
       this.status.textContent = this.profile?.needsRename ? 'Your previous name was removed. Choose a new one to submit.' : this.profile ? `Playing as ${displayName(this.profile)}` : 'Choose a family-friendly name. Your tag is assigned when you save.'
     } catch (error) {
-      if (generation === this.generation) this.status.textContent = error instanceof Error ? error.message : 'Could not load your name.'
+      if (!aborted()) this.status.textContent = error instanceof Error ? error.message : 'Could not load your name.'
     } finally {
-      if (generation === this.generation) { this.save.disabled = false; this.input.disabled = false }
+      if (!aborted()) { this.save.disabled = false; this.input.disabled = false }
     }
   }
   hide(): void {
@@ -91,17 +98,18 @@ export class PlayerNameForm {
     this.input.value = ''
     this.input.disabled = false
     this.profile = null
+    this.loaded = false
     this.pending = null
   }
-  ensure(): Promise<void> {
+  ensure(refreshCookie = false): Promise<void> {
     if (this.pending) return this.pending
     const generation = this.generation
-    this.pending = this.claim(generation).finally(() => { if (generation === this.generation) this.pending = null })
+    this.pending = this.claim(generation, refreshCookie).finally(() => { if (generation === this.generation) this.pending = null })
     return this.pending
   }
-  private async claim(generation: number): Promise<void> {
+  private async claim(generation: number, refreshCookie: boolean): Promise<void> {
     if (!isUsername(this.input.value)) { this.input.focus(); throw new Error(messages.name_format) }
-    if (this.profile?.username === this.input.value && !this.profile.needsRename) return
+    if (!refreshCookie && this.profile?.username === this.input.value && !this.profile.needsRename) return
     this.save.disabled = true
     this.input.disabled = true
     this.status.textContent = 'Saving your name…'
@@ -110,6 +118,7 @@ export class PlayerNameForm {
       if (generation !== this.generation) return
       if (!isProfile(data.profile) || !data.profile.username || data.profile.needsRename) throw new Error('Name response unavailable. Please try again.')
       this.profile = data.profile
+      this.loaded = true
       this.input.value = this.profile.username ?? ''
       this.status.textContent = `Playing as ${displayName(this.profile)}`
     } catch (error) {

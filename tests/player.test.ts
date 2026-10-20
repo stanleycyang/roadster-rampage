@@ -4,7 +4,7 @@ import { validateUsername } from '../server/names.ts'
 import { createPlayerHandler } from '../server/player.ts'
 import { playerIdFor, readPlayerToken } from '../server/identity.ts'
 import { RENAME_COOLDOWN_MS } from '../shared/player.ts'
-import type { PlayerProfile, NameReport, ReportReason, ClaimResult } from '../shared/player.ts'
+import type { PlayerProfile, NameReport, ReportReason, ClaimResult, ModerationTarget, ModerationResult } from '../shared/player.ts'
 import type { PlayerStore } from '../server/player-store.ts'
 import { MemoryStore } from './memory-store.ts'
 
@@ -17,6 +17,8 @@ const cookie = (token: string) => `__Host-Http-roadster-player=${token}`
 class Players extends MemoryStore implements PlayerStore {
   profiles = new Map<string, PlayerProfile>([[targetId, { username: 'NightDriver', tag: '1001', changedAt: 1, needsRename: false }]])
   reported: NameReport[] = []
+  moderationAllowed = true
+  async allowModeration() { return this.moderationAllowed }
   async profile(id: string) { return this.profiles.get(id) ?? null }
   async claim(id: string, username: string, now: number): Promise<ClaimResult> {
     const previous = this.profiles.get(id)
@@ -24,13 +26,14 @@ class Players extends MemoryStore implements PlayerStore {
   }
   async report(_reporter: string, id: string, reason: ReportReason, now: number) {
     const profile = this.profiles.get(id)!
-    this.reported.push({ playerId: id, username: profile.username!, tag: profile.tag, reason, createdAt: now }); return true
+    this.reported.push({ playerId: id, username: profile.username!, tag: profile.tag, nameChangedAt: profile.changedAt, reason, createdAt: now }); return true
   }
-  async reports() { return this.reported }
-  async moderate(id: string) {
-    const p = this.profiles.get(id)
-    if (!p) return false
-    this.profiles.set(id, { ...p, username: null, needsRename: true }); return true
+  async reports(now: number) { return this.reported.filter(report => { const profile = this.profiles.get(report.playerId); return report.createdAt > now - RENAME_COOLDOWN_MS && profile?.username === report.username && profile?.changedAt === report.nameChangedAt && !profile?.needsRename }).slice(0, 100) }
+  async moderate(target: ModerationTarget): Promise<ModerationResult> {
+    const p = this.profiles.get(target.playerId)
+    if (!p) return 'missing'
+    if (p.needsRename || p.username !== target.username || p.tag !== target.tag || p.changedAt !== target.nameChangedAt) return 'stale'
+    this.profiles.set(target.playerId, { ...p, username: null, needsRename: true }); return 'moderated'
   }
 }
 
@@ -65,6 +68,9 @@ test('anonymous names issue private cookies, allow duplicate names and reject fo
   assert.ok(!JSON.stringify(data).includes(session.split('=')[1]!.split(';')[0]!))
   const remembered = await send(undefined, { Cookie: session.split(';')[0]! })
   assert.deepEqual((await remembered.json()).profile, data.profile)
+  const renewed = await send({ action: 'claim', username: 'NightDriver' }, { Cookie: session.split(';')[0]! })
+  assert.equal(renewed.status, 200)
+  assert.equal(renewed.headers.get('set-cookie'), session)
   // A public ID is not the browser credential and cannot impersonate its owner.
   assert.equal((await (await send(undefined, { Cookie: cookie(targetId) })).json()).profile, null)
   assert.equal((await send({ action: 'moderate', playerId: targetId })).status, 403)
@@ -76,7 +82,7 @@ test('anonymous names issue private cookies, allow duplicate names and reject fo
   assert.equal((await send({ action: 'report', playerId: targetId, reason: '<script>' }, { Cookie: cookie(otherToken) })).status, 400)
   const admin = { Authorization: `Bearer ${moderationSecret}` }
   assert.equal((await (await send({ action: 'reports' }, admin)).json()).reports.length, 1)
-  assert.equal((await send({ action: 'moderate', playerId: targetId }, admin)).status, 200)
+  assert.equal((await send({ action: 'moderate', playerId: targetId, username: 'NightDriver', tag: '1001', nameChangedAt: 1 }, admin)).status, 200)
   assert.equal((await (await send({ action: 'reports' }, admin)).json()).reports.length, 0)
   assert.equal((await store.profile(targetId))?.needsRename, true)
   store.allowed = false
@@ -111,10 +117,43 @@ test('named submissions use only browser identity and server-assigned name/tag',
   assert.equal(entry.alias, 'NightDriver#1001')
   assert.equal(entry.playerId, targetId)
   assert.ok(!JSON.stringify(entry).includes(targetToken))
-  await store.moderate(targetId)
+  await store.moderate({ playerId: targetId, username: 'NightDriver', tag: '1001', nameChangedAt: 1 })
   assert.equal((await send(body, targetToken)).status, 409)
 })
 
 test('unconfigured player service fails closed', async () => {
   assert.equal((await createPlayerHandler(null, null)(new Request('https://game.example'))).status, 503)
+})
+
+test('moderation bypasses exhausted public quotas but has a separate bounded gate', async () => {
+  const store = new Players()
+  store.allowed = false
+  const handler = createPlayerHandler(store, { players: store, secret, moderationSecret }, () => 100)
+  const send = (body: object, authorization?: string) => handler(new Request('https://game.example/api/player', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) }, body: JSON.stringify(body),
+  }))
+  assert.equal((await send({ action: 'reports' }, 'Bearer forged')).status, 429)
+  assert.equal((await send({ action: 'reports' }, `Bearer ${moderationSecret}`)).status, 200)
+  const target = { playerId: targetId, username: 'NightDriver', tag: '1001', nameChangedAt: 1 }
+  assert.equal((await send({ action: 'moderate', playerId: targetId }, `Bearer ${moderationSecret}`)).status, 400)
+  assert.equal((await send({ action: 'moderate', ...target, nameChangedAt: 2 }, `Bearer ${moderationSecret}`)).status, 409)
+  assert.equal((await store.profile(targetId))?.username, 'NightDriver')
+  assert.equal((await send({ action: 'moderate', ...target }, `Bearer ${moderationSecret}`)).status, 200)
+  store.moderationAllowed = false
+  assert.equal((await send({ action: 'reports' }, `Bearer ${moderationSecret}`)).status, 429)
+})
+
+test('disabling name mode hides saved names and public player IDs', async () => {
+  const { createHandler, aliasFor } = await import('../server/leaderboard.ts')
+  const store = new Players()
+  const entry = { runId: crypto.randomUUID(), alias: 'NightDriver#1001', playerId: targetId, score: 10, distance: 1 }
+  store.entries.set(entry.runId, entry)
+  const handler = createHandler(store, secret)
+  const response = await handler(new Request('https://game.example/api/leaderboard'))
+  assert.equal(response.status, 200)
+  const data = await response.json()
+  assert.equal(data.usernamesEnabled, false)
+  assert.equal(data.entries[0].alias, aliasFor(entry.runId, secret))
+  assert.equal(data.entries[0].playerId, undefined)
+  assert.ok(!JSON.stringify(data).includes('NightDriver'))
 })

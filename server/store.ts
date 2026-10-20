@@ -4,7 +4,7 @@ import { displayName } from '../shared/player.ts'
 import { LIMIT, TICKET_MS } from '../shared/leaderboard.ts'
 export interface Store {
   allow(client: string, write: boolean, now: number): Promise<boolean>
-  list(): Promise<Entry[]>
+  list(resolveNames?: boolean): Promise<Entry[]>
   submit(entry: Entry, issuedAt: number, now: number): Promise<boolean>
 }
 // One atomic gate, with global limits BEFORE allocating per-client fields.
@@ -65,12 +65,12 @@ export class RedisStore implements Store {
   async allow(client: string, write: boolean, now: number): Promise<boolean> {
     return await this.command(['EVAL', GATE, 2, `${this.prefix}:rate:${Math.floor(now / 3600000)}`, `${this.prefix}:daily:${Math.floor(now / 86400000)}`, client, write ? 'write' : 'read']) === 1
   }
-  async list(): Promise<Entry[]> {
+  async list(resolveNames = true): Promise<Entry[]> {
     const rows = await this.command(['ZREVRANGE', `${this.prefix}:top`, 0, LIMIT - 1])
     if (!Array.isArray(rows)) throw new Error('Storage unavailable')
     const entries = rows.map(row => JSON.parse(String(row).slice(37)) as Entry)
     const named = entries.filter(entry => entry.playerId)
-    if (named.length) {
+    if (resolveNames && named.length) {
       const profiles = await this.command(['HMGET', `${this.prefix}:players`, ...named.map(entry => entry.playerId!)])
       if (!Array.isArray(profiles) || profiles.length !== named.length) throw new Error('Storage unavailable')
       const parsed = profiles.map(raw => raw ? JSON.parse(String(raw)) as PlayerProfile : null)

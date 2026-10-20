@@ -1,5 +1,5 @@
-import { PLAYER_ID_PATTERN, REPORT_REASONS, RENAME_COOLDOWN_MS } from '../shared/player.ts'
-import type { ReportReason } from '../shared/player.ts'
+import { PLAYER_ID_PATTERN, REPORT_REASONS, TAG_PATTERN, isUsername } from '../shared/player.ts'
+import type { ReportReason, ModerationTarget } from '../shared/player.ts'
 import type { PlayerStore } from './player-store.ts'
 import type { Store } from './store.ts'
 import { validateUsername } from './names.ts'
@@ -14,6 +14,21 @@ export function createPlayerHandler(store: (Store & PlayerStore) | null, service
     try {
       checkOrigin(req)
       const time = now()
+      // Verified moderator traffic has its own bounded quota and is never
+      // admitted through player IP/global/daily gates.
+      if (req.method === 'POST' && isModerator(req, services.moderationSecret)) {
+        if (!await store.allowModeration(time)) return reply(429, { error: 'moderation_rate_limit' })
+        const body = await readBody(req)
+        if (body.action === 'reports') {
+          exactFields(body, ['action'])
+          return reply(200, { reports: await store.reports(time) })
+        }
+        if (body.action !== 'moderate') throw new RequestError(400, 'invalid_request')
+        exactFields(body, ['action', 'playerId', 'username', 'tag', 'nameChangedAt'])
+        if (typeof body.playerId !== 'string' || !PLAYER_ID_PATTERN.test(body.playerId) || !isUsername(body.username) || typeof body.tag !== 'string' || !TAG_PATTERN.test(body.tag) || !Number.isSafeInteger(body.nameChangedAt) || (body.nameChangedAt as number) < 0) throw new RequestError(400, 'invalid_request')
+        const result = await store.moderate(body as unknown as ModerationTarget)
+        return result === 'moderated' ? reply(200, { moderated: true }) : reply(result === 'stale' ? 409 : 404, { error: result === 'stale' ? 'name_version_changed' : 'player_not_found' })
+      }
       const ip = req.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
       const bucket = playerIdFor(`ip:${Math.floor(time / 3600000)}:${ip}`, services.secret)
       if (!await store.allow(bucket, req.method === 'POST', time)) return reply(429, { error: 'rate_limit' })
@@ -21,18 +36,7 @@ export function createPlayerHandler(store: (Store & PlayerStore) | null, service
       const playerId = token ? playerIdFor(token, services.secret) : null
       if (req.method === 'GET') return reply(200, { profile: playerId ? await store.profile(playerId) : null })
       const body = await readBody(req)
-      if (body.action === 'reports' || body.action === 'moderate') {
-        if (!isModerator(req, services.moderationSecret)) return reply(403, { error: 'forbidden' })
-        exactFields(body, body.action === 'reports' ? ['action'] : ['action', 'playerId'])
-        if (body.action === 'reports') {
-          const reports = await store.reports()
-          const profiles = await Promise.all(reports.map(report => store.profile(report.playerId)))
-          return reply(200, { reports: reports.filter((report, i) => report.createdAt > time - RENAME_COOLDOWN_MS && profiles[i]?.username === report.username && !profiles[i]?.needsRename) })
-        }
-        if (typeof body.playerId !== 'string' || !PLAYER_ID_PATTERN.test(body.playerId)) throw new RequestError(400, 'invalid_request')
-        const moderated = await store.moderate(body.playerId)
-        return reply(moderated ? 200 : 404, { moderated })
-      }
+      if (body.action === 'reports' || body.action === 'moderate') return reply(403, { error: 'forbidden' })
       if (body.action === 'claim') {
         exactFields(body, ['action', 'username'])
         const invalid = validateUsername(body.username)
