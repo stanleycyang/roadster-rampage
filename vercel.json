@@ -7,8 +7,7 @@
   "git": {
     "deploymentEnabled": {
       "release/public-distribution-readiness": false,
-      "feature/global-leaderboard": false,
-      "feature/player-usernames": false
+      "feature/global-leaderboard": false
     }
   },
   "headers": [
@@ -40,6 +39,7 @@
     }
   ],
   "functions": {
+    "api/player.ts": { "maxDuration": 10 },
     "api/leaderboard.ts": {
       "maxDuration": 10
     }

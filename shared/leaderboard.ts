@@ -1,4 +1,4 @@
-import { isUsername, PLAYER_ID_PATTERN } from './player.ts'
+import { isTaggedName, PLAYER_ID_PATTERN } from './player.ts'
 export const RULESET = 'roadster-v1'
 export const LIMIT = 100
 export const TICKET_MS = 6 * 60 * 60 * 1000
@@ -20,5 +20,5 @@ export function isAlias(value: unknown): value is string {
 export function isEntry(value: unknown): value is Entry {
   if (!value || typeof value !== 'object') return false
   const e = value as Entry
-  return /^[0-9a-f-]{36}$/.test(e.runId) && (e.playerId === undefined ? isAlias(e.alias) : PLAYER_ID_PATTERN.test(e.playerId) && (isUsername(e.alias) || e.alias === 'Name removed')) && Number.isSafeInteger(e.score) && e.score >= 0 && e.score <= 1e9 && Number.isSafeInteger(e.distance) && e.distance >= 0 && e.distance <= 1e6
+  return /^[0-9a-f-]{36}$/.test(e.runId) && (e.playerId === undefined ? isAlias(e.alias) : PLAYER_ID_PATTERN.test(e.playerId) && (isTaggedName(e.alias) || e.alias === 'Name removed')) && Number.isSafeInteger(e.score) && e.score >= 0 && e.score <= 1e9 && Number.isSafeInteger(e.distance) && e.distance >= 0 && e.distance <= 1e6
 }

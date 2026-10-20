@@ -1,5 +1,6 @@
 import type { Entry } from '../shared/leaderboard.ts'
 import type { PlayerProfile } from '../shared/player.ts'
+import { displayName } from '../shared/player.ts'
 import { LIMIT, TICKET_MS } from '../shared/leaderboard.ts'
 export interface Store {
   allow(client: string, write: boolean, now: number): Promise<boolean>
@@ -30,7 +31,7 @@ if ARGV[6] ~= '' then
   local raw = redis.call('HGET', KEYS[3], ARGV[6])
   if not raw then return -1 end
   local profile = cjson.decode(raw)
-  if profile.needsRename or profile.username ~= ARGV[7] then return -1 end
+  if profile.needsRename or profile.username == cjson.null or redis.call('HEXISTS', KEYS[4], string.lower(profile.username)) == 1 or profile.username .. '#' .. profile.tag ~= ARGV[7] then return -1 end
 end
 redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', ARGV[4])
 if redis.call('ZSCORE', KEYS[2], ARGV[1]) then return 0 end
@@ -72,15 +73,15 @@ export class RedisStore implements Store {
     if (named.length) {
       const profiles = await this.command(['HMGET', `${this.prefix}:players`, ...named.map(entry => entry.playerId!)])
       if (!Array.isArray(profiles) || profiles.length !== named.length) throw new Error('Storage unavailable')
-      named.forEach((entry, i) => {
-        const profile = profiles[i] ? JSON.parse(String(profiles[i])) as PlayerProfile : null
-        entry.alias = profile && !profile.needsRename && profile.username ? profile.username : 'Name removed'
-      })
+      const parsed = profiles.map(raw => raw ? JSON.parse(String(raw)) as PlayerProfile : null)
+      const blocked = await this.command(['HMGET', `${this.prefix}:blocked-names`, ...parsed.map(profile => profile?.username?.toLowerCase() ?? '')])
+      if (!Array.isArray(blocked) || blocked.length !== named.length) throw new Error('Storage unavailable')
+      named.forEach((entry, i) => { entry.alias = parsed[i] && !blocked[i] ? displayName(parsed[i]!) : 'Name removed' })
     }
     return entries
   }
   async submit(entry: Entry, issuedAt: number, now: number): Promise<boolean> {
-    const result = await this.command(['EVAL', SUBMIT, 3, `${this.prefix}:top`, `${this.prefix}:seen`, `${this.prefix}:players`, entry.runId, entry.score, issuedAt, now - TICKET_MS, `${entry.runId}|${JSON.stringify(entry)}`, entry.playerId ?? '', entry.alias])
+    const result = await this.command(['EVAL', SUBMIT, 4, `${this.prefix}:top`, `${this.prefix}:seen`, `${this.prefix}:players`, `${this.prefix}:blocked-names`, entry.runId, entry.score, issuedAt, now - TICKET_MS, `${entry.runId}|${JSON.stringify(entry)}`, entry.playerId ?? '', entry.alias])
     if (result === -1) throw new Error('Name changed before submission')
     return result === 1
   }

@@ -2,7 +2,8 @@ import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto'
 import { ANIMALS, COLORS, RULESET, TICKET_MS, isEntry } from '../shared/leaderboard.ts'
 import type { Entry, RunResult } from '../shared/leaderboard.ts'
 import type { Store } from './store.ts'
-import { playerIdFor } from './player.ts'
+import { playerIdFor, readPlayerToken } from './identity.ts'
+import { displayName } from '../shared/player.ts'
 import type { PlayerServices } from './player.ts'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 class Invalid extends Error {}
@@ -66,13 +67,13 @@ export function createHandler(store: Store | null, secret: string, now = Date.no
       if (run.durationMs > time - issuedAt + 10000 || run.distance > (run.durationMs / 1000) * 150 + 100) throw new Invalid()
       const entry: Entry = { runId: run.runId, alias: aliasFor(run.runId, secret), score: run.score, distance: run.distance }
       if (players) {
-        const identity = await players.authenticate(req)
-        if (!identity) return reply(401, { error: 'sign_in_required' })
-        const playerId = playerIdFor(identity.id, players.secret)
+        const token = readPlayerToken(req)
+        if (!token) return reply(409, { error: 'name_required' })
+        const playerId = playerIdFor(token, players.secret)
         const profile = await players.players.profile(playerId)
         if (!profile?.username || profile.needsRename) return reply(409, { error: 'name_required' })
         entry.playerId = playerId
-        entry.alias = profile.username
+        entry.alias = displayName(profile)
       }
       const added = await store.submit(entry, issuedAt, time)
       return reply(200, { entry, duplicate: !added })

@@ -1,30 +1,56 @@
-# Player usernames — draft implementation
+# Anonymous display names and tags
 
-Status: backend foundation only. Guest play and the existing random-alias leaderboard remain active. No production configuration or deployment was changed. This branch explicitly disables its automatic Vercel deployment.
+Players can play immediately, then choose a display name before submitting their current run. No Clerk, email, password or third-party authentication is used. The server assigns a unique tag, such as `NightDriver#1001`. Other people may choose `NightDriver`, but receive different tags. These identities are anonymous and are not proof of a real person or a valid score.
 
-## Implemented
+## Player flow
 
-- ASCII usernames: 3–16 characters, starting with a letter, then letters, digits or underscores. Case-insensitive uniqueness; original capitalization is displayed.
-- Atomic Redis claims prevent two accounts from acquiring the same name. One current name per account; ordinary changes have a 30-day cooldown. Previous names stay reserved to their original account to prevent impersonation. Moderated names become globally reserved, including for their former owner.
-- Server-side English profanity checks with Obscenity, joined/leet variants, a small core-stem denylist and reserved staff names. This is not a guarantee or multilingual moderation. Known benign exceptions are exact, not substring bypasses. The server rejects unsupported alphabets, invisible characters, spaces and punctuation rather than silently changing the requested name.
-- The named submission path uses the authenticated account's profile; clients cannot supply aliases or player IDs. It remains optional and is not connected to the deployed API yet.
-- Public player IDs are domain-separated HMACs. Redis holds no email addresses, provider user IDs or authentication tokens. The identity derivation secret must stay stable; rotating it needs a migration, otherwise existing claims become inaccessible.
-- Named score writes recheck the current profile atomically in Lua, protecting against a simultaneous forced rename. Reads resolve names from profiles so old top-100 rows immediately reflect moderation and name changes. Existing random aliases remain compatible and do not reserve usernames.
-- Authenticated reports accept only fixed reasons, deduplicate by reporter/target/name version, and expire from the queue after 30 days when a report is written. The queue returns at most 100 entries. Reports do not automatically ban a player.
-- Moderator-only report review and forced rename logic. A forced rename hides the old name as `Name removed`, reserves it, and allows its owner to choose a replacement without the normal cooldown.
-- Origin checks, exact request fields, streamed 2 KiB body limit, IP/account admission limits, and generic failure responses. These bound accepted work, not arbitrary hosting spend. Persistent name reservations grow with accounts and renames; monitor Redis usage and retain the existing provider budget controls.
+The results screen offers a name field. “Submit this run” saves the name if necessary and then submits the frozen run; “Save name” saves only the name. A family-friendly name is required for tagged submissions. The server rejects tag, alias and player-ID fields in score/claim requests and resolves identity and display name itself.
 
-## Pending before this feature is ready
+Names use 3–16 ASCII letters, digits or underscores and start with a letter. Server checks include Obscenity's English dataset, joined/leet variants, core offensive stems and reserved staff names. A small exact allowlist avoids known benign false positives. This is English-focused filtering, not a guarantee; players can report names using fixed reasons. No freeform report text is collected.
 
-1. Accept Clerk's Vercel Marketplace terms for team `testimonio`: <https://vercel.com/testimonio/~/integrations/accept-terms/clerk?source=cli>. The attempted installation returned `integration_terms_acceptance_required`; no Clerk resource was created. Complete that user account step before installing the SDK or connecting resources.
-2. Provision an isolated development/preview Clerk application without connecting production. Configure verified email sign-in and Google as desired; explicitly validate allowed origins/authorized parties and verification status using Clerk's official SDK. No handmade JWT verifier or browser-local name ownership.
-3. Add the real provider adapter, `/api/player` entry point, and explicit configuration gate; connect `PlayerServices` to the leaderboard only when the feature is fully configured. Missing auth configuration must fail closed when enabled, without falling back to anonymous named writes.
-4. Build the post-run “Claim a name & submit” UI, account management, reports and moderator review UI, preserving the current run while the sign-in modal is open. Keep guest play and local records independent of authentication availability.
-5. Test real sign-up, sign-in on another device, session expiry/sign-out, competing name claims, report review and forced rename in preview. Test account deletion/recovery and define a retention policy; historical scores must not be claimable by another account.
-6. Review and enable production separately. Do not merge this draft as a complete username feature.
+A private, random 256-bit browser credential is generated by the server after a valid first claim. It is stored in an HttpOnly, Secure, SameSite=Strict, host-only cookie with a one-year lifetime, refreshed when saving a name. JavaScript never receives the credential. The `__Host-Http-` prefix and origin checks prevent ordinary cross-site cookie fixation/claims. Loopback HTTP development uses a separate, non-Secure cookie name; production always uses the protected cookie. No persistent identifier is created merely by visiting or starting a run.
 
-## Verification
+Clearing cookies, changing browsers/devices, or letting the cookie expire loses that anonymous identity. There is no recovery code or account recovery. Host-only cookies are also separate between www/apex/other subdomains; consistently redirect players to one canonical host. Cookie blocking produces an actionable submission error. Never describe the tag as verified identity or account ownership.
 
-`REDIS_SERVER=/path/to/redis-server REDIS_CLI=/path/to/redis-cli npm test` runs real Lua tests on disposable local Unix-socket Redis with persistence disabled. Tests cover concurrent case-insensitive claims, idempotence, cooldown, previous-name reservation, moderation, duplicate reports, named-score writes, denied impersonation fields and authentication/authorization failures. Without those binaries, the two local Redis tests skip explicitly. Type checks and the production build also pass.
+## Storage and moderation
 
-References: [Clerk JavaScript setup](https://clerk.com/docs/js-frontend/getting-started/quickstart), [Clerk request authentication](https://clerk.com/docs/reference/backend/authenticate-request), [Obscenity](https://github.com/jo3-l/obscenity).
+Atomic Redis claims allocate monotonic tags (starting at 1001), shared across all display names within a leaderboard prefix. Concurrent claims of the same name receive different tags. Tags survive renames and are never released or reassigned by the application. Do not reset/delete the tag counter or identity data in a live namespace; restore them together if recovering from backup. There is a 50,000-profile admission ceiling per prefix and a 12-digit tag ceiling. These limits reject new identities without evicting existing ones.
+
+One current display name is stored per anonymous identity. Ordinary changes have a 30-day cooldown, and saving the same spelling is idempotent. There is no exclusivity or reservation of ordinary display names. Public player IDs are domain-separated HMACs of private browser credentials, scoped by the stable player secret and leaderboard prefix. Redis stores no browser credentials, emails or provider IDs. The public ID cannot be used as the private cookie.
+
+`/api/player` supports profile reads, name claims and reports. Reports require a saved anonymous identity and cannot target oneself. They deduplicate by reporter/target/name version, retain at most 30 days of actionable reports and return at most 100 for review. Expired queue data is physically pruned when a report is written. IP and identity limits share the existing bounded leaderboard admission gate; each identity request may consume two admissions. Creating more anonymous identities can bypass identity-level limits, so IP/global limits, the profile ceiling and provider budgets still matter. These controls do not promise a hard hosting spend cap under a flood.
+
+Moderator review and forced rename require a separate server-side bearer secret. Browser cookies, public IDs, names or request-body role fields never grant moderator access. Forced rename immediately hides the rejected name on every existing leaderboard row using that base name and blocks future claims case-insensitively. Affected players may choose a replacement without the normal cooldown, retaining their tag. Reports never automatically ban a player.
+
+Existing curated random-alias rows remain compatible. Tagged rows resolve their current name on reads, rather than trusting historical name snapshots. Lua submission rechecks profile and moderation state atomically. Scores remain casual and browser-reported.
+
+## Configuration and rollout
+
+The existing Redis pair, `LEADERBOARD_ENABLED`, `LEADERBOARD_SECRET` and `LEADERBOARD_PREFIX` remain required. Add these server-only variables to the intended environment:
+
+- `PLAYER_NAMES_ENABLED=true` enables the new flow. Without it, the existing random-alias behavior remains.
+- `PLAYER_ID_SECRET`: a cryptographically random secret of at least 32 characters, separate from the run-ticket signing secret. Keep it stable and backed up. Rotating it needs an identity migration; otherwise existing browser cookies cannot recover their profiles. Use different secrets and prefixes in Preview and Production.
+- `PLAYER_MODERATION_SECRET`: a separate random secret of at least 32 characters to enable moderator operations. Never prefix it with `VITE_`, send it to browsers or commit it. Moderation stays denied if it is absent.
+
+If name mode is enabled without a valid player secret, both routes fail closed instead of allowing anonymous named submissions. Old leaderboard data does not need a migration. Production activation is separate from merging this PR; configure the production values before switching the flag and redeploying. Keep moderation available before a public launch.
+
+To review reports locally, set `PLAYER_MODERATION_URL` to the exact HTTPS `/api/player` URL and load `PLAYER_MODERATION_SECRET` securely into the shell environment. Run:
+
+```sh
+node scripts/moderate-names.ts reports
+node scripts/moderate-names.ts moderate <public-player-id>
+```
+
+The script rejects non-HTTPS endpoints and redirects, accepts no secret argument and never prints the moderation secret. Reports contain the reported public names and tags, so treat their output as moderation material. Review a report before forcing a rename.
+
+## Validation
+
+```sh
+npm ci
+REDIS_SERVER=/path/to/redis-server REDIS_CLI=/path/to/redis-cli npm test
+npm run build
+```
+
+Tests use disposable local Redis with TCP and persistence disabled to verify concurrent duplicate names/unique tags, stable tags across renames, cooldowns, report deduplication, moderation, idempotent score writes and name removal. Handler tests verify private-cookie issuance, anonymous submissions, forged fields, public-ID impersonation attempts, origin checks, moderator authorization and fail-closed configuration. Both emitted API module graphs are compiled and loaded in the runtime regression test. Without Redis binaries, the two integration tests explicitly skip.
+
+References: [secure cookies](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie), [Obscenity](https://github.com/jo3-l/obscenity).

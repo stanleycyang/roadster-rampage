@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { RedisPlayerStore } from '../server/player-store.ts'
-import { RENAME_COOLDOWN_MS } from '../shared/player.ts'
+import { displayName, RENAME_COOLDOWN_MS } from '../shared/player.ts'
 const exec = promisify(execFile)
 
 test('Redis atomically protects claims, renames, moderation and named score writes', { skip: !process.env.REDIS_SERVER || !process.env.REDIS_CLI }, async () => {
@@ -25,30 +25,36 @@ test('Redis atomically protects claims, renames, moderation and named score writ
     const store = new RedisPlayerStore('https://mock.invalid', 'offline-only', 'test', request)
     const ids = Array.from({ length: 20 }, (_, i) => i.toString(16).padStart(64, '0'))
     const claims = await Promise.all(ids.map((id, i) => store.claim(id, i % 2 ? 'NightDriver' : 'nightdriver', 100)))
-    assert.equal(claims.filter(result => result === 'claimed').length, 1)
+    assert.equal(claims.filter(result => result === 'claimed').length, 20)
+    const tags = await Promise.all(ids.map(async id => (await store.profile(id))!.tag))
+    assert.equal(new Set(tags).size, 20)
     const winner = ids[claims.indexOf('claimed')]!
     const profile = (await store.profile(winner))!
     assert.equal(await store.claim(winner, profile.username!, 200), 'claimed')
     assert.equal(await store.claim(winner, 'NewDriver', 200), 'cooldown')
     assert.equal(await store.claim(winner, 'NewDriver', RENAME_COOLDOWN_MS + 101), 'claimed')
-    assert.equal(await store.claim(ids.find(id => id !== winner)!, 'NIGHTDRIVER', RENAME_COOLDOWN_MS + 102), 'taken')
-    const entry = { runId: randomUUID(), alias: 'NewDriver', playerId: winner, score: 50, distance: 1 }
+    assert.equal(await store.claim(ids.find(id => id !== winner)!, 'NIGHTDRIVER', RENAME_COOLDOWN_MS + 102), 'claimed')
+    const entry = { runId: randomUUID(), alias: displayName((await store.profile(winner))!), playerId: winner, score: 50, distance: 1 }
     assert.ok(await store.submit(entry, 100, 200))
-    assert.equal((await store.list())[0]?.alias, 'NewDriver')
+    assert.equal((await store.list())[0]?.alias, entry.alias)
     const reporter = ids.find(id => id !== winner)!
     assert.ok(await store.report(reporter, winner, 'profanity', RENAME_COOLDOWN_MS + 200))
     assert.ok(await store.report(reporter, winner, 'hate', RENAME_COOLDOWN_MS + 201))
     assert.equal((await store.reports()).length, 1)
     assert.equal(await store.report(winner, winner, 'hate', RENAME_COOLDOWN_MS + 201), false)
+    assert.equal(await store.claim(reporter, 'NewDriver', 2 * RENAME_COOLDOWN_MS + 500), 'claimed')
     assert.ok(await store.moderate(winner))
+    assert.equal((await store.profile(reporter))?.needsRename, true)
+    assert.equal(await store.claim(reporter, 'OtherSafeDriver', 2 * RENAME_COOLDOWN_MS + 501), 'claimed')
     assert.equal((await store.list())[0]?.alias, 'Name removed')
     await assert.rejects(store.submit({ ...entry, runId: randomUUID() }, 200, 201))
-    assert.equal(await store.claim(winner, 'NewDriver', RENAME_COOLDOWN_MS + 300), 'taken')
+    assert.equal(await store.claim(winner, 'NewDriver', RENAME_COOLDOWN_MS + 300), 'blocked')
     assert.equal(await store.claim(winner, 'SafeDriver', RENAME_COOLDOWN_MS + 300), 'claimed')
-    assert.equal((await store.list())[0]?.alias, 'SafeDriver')
-    assert.ok(await store.submit({ ...entry, runId: randomUUID(), alias: 'SafeDriver' }, 200, 201))
+    assert.equal((await store.list())[0]?.alias, `SafeDriver#${profile.tag}`)
+    assert.equal((await store.profile(winner))!.tag, profile.tag)
+    assert.ok(await store.submit({ ...entry, runId: randomUUID(), alias: `SafeDriver#${profile.tag}` }, 200, 201))
     // Retrying the original run cannot replace its score or consume another slot.
-    assert.equal(await store.submit({ ...entry, alias: 'SafeDriver', score: 9999 }, 200, 201), false)
+    assert.equal(await store.submit({ ...entry, alias: `SafeDriver#${profile.tag}`, score: 9999 }, 200, 201), false)
     assert.equal((await store.list()).length, 2)
     assert.ok((await store.list()).every(row => row.score === 50))
   } finally {

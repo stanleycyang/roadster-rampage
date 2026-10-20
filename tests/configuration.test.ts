@@ -76,3 +76,23 @@ test('tickets cannot cross datastore prefixes even when the signing secret is sh
     assert.equal(submissions.at(-1), `${prefix}:top`)
   }
 })
+
+test('name mode requires a separate identity secret and player API remains disabled otherwise', async () => {
+  const { configuredPlayerHandler } = await import('../api/player.ts')
+  let calls = 0
+  const request: typeof fetch = async (_url, init) => {
+    calls++
+    const command = JSON.parse(init!.body as string)
+    return Response.json({ result: command[0] === 'EVAL' ? 1 : [] })
+  }
+  const base = { ...activation, ...kv }
+  assert.equal((await configuredPlayerHandler(base, request)(new Request('https://game.example/api/player'))).status, 503)
+  assert.equal((await configuredHandler({ ...base, PLAYER_NAMES_ENABLED: 'true' }, request)(new Request('https://game.example/api/leaderboard'))).status, 503)
+  assert.equal(calls, 0)
+  const env = { ...base, PLAYER_NAMES_ENABLED: 'true', PLAYER_ID_SECRET: 'test-only-player-identity-secret-32-characters' }
+  const response = await configuredHandler(env, request)(new Request('https://game.example/api/leaderboard'))
+  assert.equal((await response.json()).usernamesEnabled, true)
+  const player = await configuredPlayerHandler(env, request)(new Request('https://game.example/api/player'))
+  assert.equal(player.status, 200)
+  assert.deepEqual(await player.json(), { profile: null })
+})
