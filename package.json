@@ -23,6 +23,7 @@
     "vite": "^8.3.0"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "obscenity": "^0.4.6",
     "three": "^0.186.1"
   }
