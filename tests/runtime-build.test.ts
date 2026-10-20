@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, writeFile, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -13,7 +13,7 @@ test('root TypeScript configuration emits an executable server module graph', as
     const config = ts.readConfigFile(join(root, 'tsconfig.json'), ts.sys.readFile)
     assert.equal(config.error, undefined)
     const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root)
-    const program = ts.createProgram([join(root, 'api/leaderboard.ts')], {
+    const program = ts.createProgram([join(root, 'api/leaderboard.ts'), join(root, 'api/player.ts')], {
       ...parsed.options, noEmit: false, rootDir: root, outDir: output,
     })
     const diagnostics = ts.getPreEmitDiagnostics(program)
@@ -22,9 +22,12 @@ test('root TypeScript configuration emits an executable server module graph', as
     }))
     assert.equal(program.emit().emitSkipped, false)
     await writeFile(join(output, 'package.json'), JSON.stringify({ type: 'module' }))
+    await symlink(join(root, 'node_modules'), join(output, 'node_modules'), 'dir')
     const api = await import(pathToFileURL(join(output, 'api/leaderboard.js')).href)
     const response = await api.configuredHandler({})(new Request('https://game.example/api/leaderboard'))
     assert.equal(response.status, 503)
+    const playerApi = await import(pathToFileURL(join(output, 'api/player.js')).href)
+    assert.equal((await playerApi.configuredPlayerHandler({})(new Request('https://game.example/api/player'))).status, 503)
   } finally {
     await rm(output, { recursive: true, force: true })
   }

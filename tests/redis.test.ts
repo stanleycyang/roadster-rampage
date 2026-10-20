@@ -27,7 +27,7 @@ test('real Lua: concurrent dedup, stable ties, trimming, bounded rate fields and
     assert.equal(added.filter(Boolean).length, 1)
     const entries = Array.from({ length: 110 }, () => ({ ...entry, runId: randomUUID(), score: 2 }))
     await Promise.all(entries.map(e => store.submit(e, 100, 101)))
-    assert.deepEqual((await store.list()).map(e => e.runId), entries.map(e => e.runId).sort().reverse().slice(0, 100))
+    assert.deepEqual((await store.list()).map(e => e.runId), entries.map(e => e.runId).sort().reverse().slice(0, 20))
     assert.equal(await store.submit({ ...entry, score: 99999 }, 100, 101), false)
     assert.equal(await command(['ZCARD', 'test:top']), 100)
     assert.equal(await command(['ZCARD', 'test:seen']), 111)

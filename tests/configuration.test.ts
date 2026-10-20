@@ -76,3 +76,41 @@ test('tickets cannot cross datastore prefixes even when the signing secret is sh
     assert.equal(submissions.at(-1), `${prefix}:top`)
   }
 })
+
+test('name mode requires a separate identity secret and player API remains disabled otherwise', async () => {
+  const { configuredPlayerHandler } = await import('../api/player.ts')
+  let calls = 0
+  const request: typeof fetch = async (_url, init) => {
+    calls++
+    const command = JSON.parse(init!.body as string)
+    return Response.json({ result: command[0] === 'EVAL' ? 1 : [] })
+  }
+  const base = { ...activation, ...kv }
+  assert.equal((await configuredPlayerHandler(base, request)(new Request('https://game.example/api/player'))).status, 503)
+  assert.equal((await configuredHandler({ ...base, PLAYER_NAMES_ENABLED: 'true' }, request)(new Request('https://game.example/api/leaderboard'))).status, 503)
+  assert.equal(calls, 0)
+  const env = { ...base, PLAYER_NAMES_ENABLED: 'true', PLAYER_ID_SECRET: 'test-only-player-identity-secret-32-characters' }
+  const response = await configuredHandler(env, request)(new Request('https://game.example/api/leaderboard'))
+  assert.equal((await response.json()).usernamesEnabled, true)
+  const player = await configuredPlayerHandler(env, request)(new Request('https://game.example/api/player'))
+  assert.equal(player.status, 200)
+  assert.deepEqual(await player.json(), { profile: null })
+})
+
+test('disabled name mode never resolves saved name profiles from Redis', async () => {
+  const calls: string[] = []
+  const entry = { runId: '11111111-1111-4111-8111-111111111111', alias: 'SavedName#1001', playerId: 'a'.repeat(64), score: 10, distance: 1 }
+  const request: typeof fetch = async (_url, init) => {
+    const command = JSON.parse(init!.body as string)
+    calls.push(command[0])
+    if (command[0] === 'EVAL') return Response.json({ result: 1 })
+    if (command[0] === 'ZREVRANGE') return Response.json({ result: [`${entry.runId}|${JSON.stringify(entry)}`] })
+    throw new Error('Unexpected profile resolution')
+  }
+  const response = await configuredHandler({ ...activation, ...kv, PLAYER_NAMES_ENABLED: 'false' }, request)(new Request('https://game.example/api/leaderboard'))
+  assert.equal(response.status, 200)
+  const body = await response.text()
+  assert.ok(!body.includes('SavedName'))
+  assert.ok(!body.includes(entry.playerId))
+  assert.deepEqual(calls, ['EVAL', 'ZREVRANGE'])
+})

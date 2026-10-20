@@ -1,3 +1,4 @@
+import { PlayerNameForm, reportName } from './player.ts'
 import { RULESET, LIMIT, isEntry } from '../shared/leaderboard.ts'
 import type { Entry, RunResult } from '../shared/leaderboard.ts'
 
@@ -7,6 +8,7 @@ export async function leaderboardRequest(body?: object, signal?: AbortSignal): P
     body: body ? JSON.stringify(body) : undefined,
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(5000)]) : AbortSignal.timeout(5000),
   }).catch(() => { throw new Error('Global leaderboard unavailable. Check your connection or try again later; you can keep playing.') })
+  if (response.status === 409) throw new Error('Choose and save a name before submitting. Allow this site’s cookies to remember your tag.')
   if (!response.ok) throw new Error(response.status === 429 ? 'Busy — please try again later.' : response.status === 400 ? 'This run cannot be submitted. Start a new run.' : 'Global leaderboard unavailable. You can keep playing.')
   return response.json()
 }
@@ -41,6 +43,9 @@ export class Leaderboard {
   private readonly refresh = document.createElement('button')
   private readonly submit = document.createElement('button')
   private readonly notice = document.createElement('p')
+  private readonly intro = document.createElement('p')
+  private readonly names = new PlayerNameForm()
+  private namesEnabled = false
   private generation = 0
   private controller: AbortController | null = null
   private run: CurrentRun | null = null
@@ -53,9 +58,8 @@ export class Leaderboard {
     this.root.dataset.ui = 'true'
     this.root.setAttribute('aria-label', 'Global leaderboard')
     const heading = document.createElement('h3')
-    heading.textContent = 'Global top 100'
-    const intro = document.createElement('p')
-    intro.textContent = 'Casual, unverified scores · Family-friendly aliases assigned by the server.'
+    heading.textContent = `Global top ${LIMIT}`
+    this.intro.textContent = 'Casual, unverified scores · Family-friendly aliases assigned by the server.'
     this.status.setAttribute('role', 'status')
     this.notice.setAttribute('role', 'status')
     this.refresh.type = this.submit.type = 'button'
@@ -63,20 +67,23 @@ export class Leaderboard {
     this.submit.textContent = 'Submit this run'
     this.refresh.addEventListener('click', () => { void this.load() })
     this.submit.addEventListener('click', () => { void this.send() })
-    this.root.append(heading, intro, this.status, this.list, this.refresh, this.submit, this.notice)
+    this.root.append(heading, this.intro, this.status, this.list, this.refresh, this.names.root, this.submit, this.notice)
   }
   show(host: HTMLElement, run: CurrentRun | null): void {
     this.hide()
     this.run = run
     host.append(this.root)
     this.submit.hidden = !run || !run.eligible
-    this.submit.disabled = false
+    this.submit.disabled = true
     this.submit.textContent = 'Submit this run'
     this.notice.textContent = run && !run.eligible ? 'Debug and screenshot runs stay local.' : run ? 'Optional: share only this run. Personal records stay on this device.' : ''
     void this.load()
   }
   hide(): void {
     this.generation++
+    this.names.hide()
+    this.namesEnabled = false
+    this.root.querySelector('dialog')?.remove()
     this.controller?.abort()
     this.controller = null
     this.root.remove()
@@ -95,12 +102,31 @@ export class Leaderboard {
       const data = await this.request(undefined, controller.signal)
       if (generation !== this.generation || controller.signal.aborted) return
       if (data.ruleset !== RULESET || !Array.isArray(data.entries) || data.entries.length > LIMIT || !data.entries.every(isEntry)) throw new Error('Invalid leaderboard response. Please try again later.')
+      this.namesEnabled = data.usernamesEnabled === true
+      if (!this.namesEnabled && this.names.active) this.names.hide()
+      this.intro.textContent = this.namesEnabled ? 'Casual, unverified scores · Choose a name. Your unique #tag is assigned by the server.' : 'Casual, unverified scores · Family-friendly aliases assigned by the server.'
       const entries = data.entries as Entry[]
       this.list.replaceChildren(...entries.map(entry => {
         const row = document.createElement('li')
         row.textContent = `${entry.alias} — ${entry.score.toLocaleString()} pts · ${entry.distance.toLocaleString()} m`
+        if (this.namesEnabled && entry.playerId && entry.alias !== 'Name removed') {
+          const report = document.createElement('button')
+          report.type = 'button'
+          report.className = 'report-name'
+          report.textContent = 'Report'
+          report.setAttribute('aria-label', `Report ${entry.alias}`)
+          report.addEventListener('click', () => {
+            const dialog = reportName(entry.playerId!, entry.alias)
+            this.root.append(dialog)
+            dialog.showModal()
+          })
+          row.append(' ', report)
+        }
         return row
       }))
+      if (this.namesEnabled && this.run?.eligible && (!this.names.active || this.names.needsLoad)) await this.names.show(controller.signal)
+      if (generation !== this.generation || controller.signal.aborted) return
+      this.submit.disabled = this.sending || Boolean(this.run && this.sent.has(this.run.id))
       this.status.textContent = entries.length ? 'Highest scores first. Equal scores use a fixed run-ID order.' : 'No runs yet. Finish a run to be the first!'
     } catch (error) {
       if (generation !== this.generation || controller.signal.aborted) return
@@ -117,6 +143,8 @@ export class Leaderboard {
     this.submit.disabled = true
     this.notice.textContent = 'Submitting this run…'
     try {
+      if (this.namesEnabled) await this.names.ensure()
+      if (generation !== this.generation) return
       const payload = await run.submission()
       if (generation !== this.generation) return
       const data = await this.request(payload)
@@ -124,7 +152,7 @@ export class Leaderboard {
       if (!isEntry(data.entry)) throw new Error('Submission response unavailable. Retry safely.')
       this.sent.add(run.id)
       this.submit.textContent = 'Submitted'
-      this.notice.textContent = `Submitted as ${data.entry.alias}. Only the top 100 runs appear.`
+      this.notice.textContent = `Submitted as ${data.entry.alias}. Only the top ${LIMIT} runs appear.`
       void this.load()
     } catch (error) {
       if (generation === this.generation) this.notice.textContent = error instanceof Error ? error.message : 'Submission unavailable. Try again.'

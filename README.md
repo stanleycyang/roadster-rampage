@@ -171,6 +171,10 @@ Roadster Rampage is an independent, unofficial arcade game inspired by futuristi
 
 ## Global leaderboard (activation required)
 
-The title and results screens include an optional, casual global top 100. Only the current run can be submitted; names are family-friendly server-assigned aliases. Debug/screenshot runs stay local. The game and personal records work when the backend is unavailable.
+The title and results screens include an optional, casual global top 20. Only the current run can be submitted; names are family-friendly server-assigned aliases. Debug/screenshot runs stay local. The game and personal records work when the backend is unavailable.
 
 The single Vercel Function is **disabled by default** and requires separately approved Redis/server configuration. See [leaderboard design, offline tests, activation, estimated costs and safe publication plan](docs/leaderboard.md). No hosting or datastore is created by installing or building this repository.
+
+### Optional anonymous player names
+
+Players can choose a display name with a server-assigned unique tag, without signing up. The browser remembers the anonymous identity with a private cookie; clearing it creates a new identity. Profanity checks, reports and moderator name removal are included. See [setup, moderation and limitations](docs/player-usernames.md). The feature stays off until `PLAYER_NAMES_ENABLED=true` and its server secrets are configured.

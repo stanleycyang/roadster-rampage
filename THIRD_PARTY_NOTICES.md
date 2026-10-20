@@ -11,7 +11,10 @@ Development and documentation assisted by Codex.
 | [Three.js](https://github.com/mrdoob/three.js) | 0.186.1 | MIT |
 | [Vite](https://github.com/vitejs/vite) | 8.3.4 | MIT |
 | [TypeScript](https://github.com/microsoft/TypeScript) | 6.0.3 | Apache-2.0 |
+| [Obscenity](https://github.com/jo3-l/obscenity) | 0.4.6 | MIT ([notice](public/licenses/Obscenity-MIT.txt)) |
 | [@types/three](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/three) | 0.186.0 | MIT |
+
+Obscenity provides server-side name filtering; it is not included in the browser JavaScript bundle.
 
 Three.js provides rendering and postprocessing, including RoomEnvironment. Vite builds the game and supplies the module-preload helper. TypeScript and the type definitions are development tools.
 

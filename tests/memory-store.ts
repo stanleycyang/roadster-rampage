@@ -15,7 +15,7 @@ export class MemoryStore implements Store {
     if (this.seen.has(entry.runId)) return false
     this.seen.set(entry.runId, issued)
     this.entries.set(entry.runId, entry)
-    const top = [...this.entries.values()].sort((a, b) => b.score - a.score || (a.runId < b.runId ? 1 : -1)).slice(0, LIMIT)
+    const top = [...this.entries.values()].sort((a, b) => b.score - a.score || (a.runId < b.runId ? 1 : -1)).slice(0, 100)
     this.entries = new Map(top.map(e => [e.runId, e]))
     return true
   }

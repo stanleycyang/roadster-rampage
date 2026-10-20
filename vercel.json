@@ -39,6 +39,7 @@
     }
   ],
   "functions": {
+    "api/player.ts": { "maxDuration": 10 },
     "api/leaderboard.ts": {
       "maxDuration": 10
     }
